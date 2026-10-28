@@ -39,8 +39,25 @@ CREATE TABLE IF NOT EXISTS items (
   link TEXT NOT NULL,
   published TEXT,
   first_seen TEXT NOT NULL,
-  baseline INTEGER NOT NULL DEFAULT 0
+  baseline INTEGER NOT NULL DEFAULT 0,
+  image TEXT
 );
+CREATE TABLE IF NOT EXISTS images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  draft_id TEXT NOT NULL UNIQUE,
+  event_id TEXT,
+  file TEXT NOT NULL,
+  sha256 TEXT NOT NULL,
+  url TEXT NOT NULL,
+  source TEXT NOT NULL,
+  license TEXT,
+  author TEXT,
+  width INTEGER,
+  height INTEGER,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_images_sha ON images(sha256);
+CREATE INDEX IF NOT EXISTS idx_images_url ON images(url);
 CREATE INDEX IF NOT EXISTS idx_items_seen ON items(first_seen);
 CREATE TABLE IF NOT EXISTS polls (
   source TEXT NOT NULL,
@@ -81,6 +98,7 @@ export function openStore(path = DEFAULT_DB) {
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 5000'); // радар пишет в ту же базу
   db.exec(SCHEMA);
+  if (!db.prepare('PRAGMA table_info(items)').all().some((c) => c.name === 'image')) db.exec('ALTER TABLE items ADD COLUMN image TEXT');
 
   const row = (r) => r && { ...r, reasons: JSON.parse(r.reasons), needs_owner: !!r.needs_owner };
   const withSources = (r) =>
@@ -138,11 +156,11 @@ export function openStore(path = DEFAULT_DB) {
     },
     /** Радар: новые записи лент. first_seen ставится один раз (повтор id игнорируется). Возвращает число новых. */
     addItems(items, { now = new Date().toISOString(), baseline = false } = {}) {
-      const ins = db.prepare('INSERT OR IGNORE INTO items (id, source, title, summary, link, published, first_seen, baseline) VALUES (?,?,?,?,?,?,?,?)');
+      const ins = db.prepare('INSERT OR IGNORE INTO items (id, source, title, summary, link, published, first_seen, baseline, image) VALUES (?,?,?,?,?,?,?,?,?)');
       let added = 0;
       db.exec('BEGIN');
       try {
-        for (const i of items) added += Number(ins.run(i.id, i.source, i.title, i.summary ?? null, i.link, i.published ?? null, now, baseline ? 1 : 0).changes);
+        for (const i of items) added += Number(ins.run(i.id, i.source, i.title, i.summary ?? null, i.link, i.published ?? null, now, baseline ? 1 : 0, i.image ?? null).changes);
         db.exec('COMMIT');
       } catch (e) {
         db.exec('ROLLBACK');
@@ -230,6 +248,18 @@ export function openStore(path = DEFAULT_DB) {
         ? db.prepare('SELECT * FROM owner_actions WHERE draft_id = ? ORDER BY id DESC LIMIT ?').all(draftId, limit)
         : db.prepare('SELECT * FROM owner_actions ORDER BY id DESC LIMIT ?').all(limit);
       return rows.map((r) => ({ ...r, detail: JSON.parse(r.detail) }));
+    },
+    /** Ссылки и картинки лент события (для подбора картинки; наружу не отдаются). */
+    eventMedia(eventId) {
+      return db.prepare('SELECT s.link, i.image FROM event_sources s LEFT JOIN items i ON i.link = s.link WHERE s.event_id = ? ORDER BY s.published, s.link').all(eventId);
+    },
+    getImage: (draftId) => db.prepare('SELECT * FROM images WHERE draft_id = ?').get(draftId) ?? null,
+    imageBySha: (sha) => db.prepare('SELECT * FROM images WHERE sha256 = ? LIMIT 1').get(sha) ?? null,
+    imageByUrl: (url) => db.prepare('SELECT * FROM images WHERE url = ? LIMIT 1').get(url) ?? null,
+    /** Одна картинка на черновик: повтор не плодит строк. */
+    addImage(r, now = new Date().toISOString()) {
+      db.prepare('INSERT OR IGNORE INTO images (draft_id, event_id, file, sha256, url, source, license, author, width, height, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+        .run(r.draftId, r.eventId ?? null, r.file, r.sha256, r.url, r.source, r.license ?? null, r.author ?? null, r.width ?? null, r.height ?? null, now);
     },
     close: () => db.close(),
   };

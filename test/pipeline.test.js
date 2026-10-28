@@ -21,7 +21,7 @@ const loader = async (s) => parseFeed(await fx(s.id === 'a' ? 'a.rss.xml' : s.id
 test('RSS: нормализация, CDATA, сущности, пропуск записей без заголовка', async () => {
   const items = parseFeed(await fx('a.rss.xml'), A);
   assert.equal(items.length, 3);
-  assert.deepEqual(Object.keys(items[0]), ['id', 'title', 'summary', 'link', 'source', 'published']);
+  assert.deepEqual(Object.keys(items[0]), ['id', 'title', 'summary', 'link', 'source', 'published', 'image']);
   assert.equal(items[0].id, 'a:a-1');
   assert.equal(items[0].summary, 'Тестовое описание & детали');
   assert.equal(items[0].published, '2026-10-27T10:00:00.000Z');

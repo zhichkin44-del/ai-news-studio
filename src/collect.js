@@ -33,6 +33,24 @@ function toIso(s) {
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
+/** Картинка записи: media:content / media:thumbnail / enclosure type=image (не видео и не аудио). */
+export function parseMediaImage(block) {
+  const attr = (a, n) => a.match(new RegExp(`(?:^|\\s)${n}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i'))?.slice(1).find(Boolean);
+  const cands = [];
+  for (const m of block.matchAll(/<(media:content|media:thumbnail|enclosure)(\s[^>]*)?>/gi)) {
+    const [, name, a = ''] = m;
+    const url = attr(a, 'url');
+    if (!url) continue;
+    const type = (attr(a, 'type') ?? '').toLowerCase();
+    const medium = (attr(a, 'medium') ?? '').toLowerCase();
+    const isThumb = name.toLowerCase() === 'media:thumbnail';
+    const ok = type ? type.startsWith('image/') : medium ? medium === 'image' : isThumb || /\.(jpe?g|png|webp)(\?|$)/i.test(url);
+    if (ok && /^https?:\/\//i.test(decode(url))) cands.push({ url: decode(url), w: Number(attr(a, 'width')) || 0, rank: isThumb ? 0 : 1 });
+  }
+  cands.sort((x, y) => y.w - x.w || y.rank - x.rank);
+  return cands[0]?.url ?? null;
+}
+
 /** Разбор RSS 2.0 / Atom в нормализованные записи. */
 export function parseFeed(xml, source) {
   const isAtom = /<feed[\s>]/i.test(xml) && !/<rss[\s>]/i.test(xml);
@@ -45,7 +63,7 @@ export function parseFeed(xml, source) {
     const summary = clean(tag(block, isAtom ? 'summary' : 'description') ?? tag(block, 'content'));
     const published = toIso(clean(tag(block, isAtom ? 'published' : 'pubDate') ?? tag(block, 'updated') ?? tag(block, 'dc:date')));
     const id = clean(tag(block, isAtom ? 'id' : 'guid')) || link;
-    out.push({ id: `${source.id}:${id}`, title, summary, link, source: source.id, published });
+    out.push({ id: `${source.id}:${id}`, title, summary, link, source: source.id, published, image: parseMediaImage(block) });
   }
   return out;
 }
