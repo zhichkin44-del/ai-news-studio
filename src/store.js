@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 
 export const STATUSES = ['новое', 'отобрано', 'отклонено', 'выпущено'];
 export const DRAFT_STATUSES = ['ждёт одобрения', 'одобрен', 'отклонён владельцем', 'опубликован'];
+export const OWNER_ACTIONS = ['одобрил', 'поправил', 'отклонил'];
 export const REJECTED_BY_CODE = 'отклонён кодом';
 export const DEFAULT_DB = 'data/news.db';
 
@@ -49,6 +50,15 @@ CREATE TABLE IF NOT EXISTS polls (
   error TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_polls_ts ON polls(ts);
+CREATE TABLE IF NOT EXISTS owner_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  draft_id TEXT NOT NULL,
+  event_id TEXT,
+  action TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_owner_actions_draft ON owner_actions(draft_id);
 CREATE TABLE IF NOT EXISTS drafts (
   id TEXT PRIMARY KEY,
   event_id TEXT NOT NULL UNIQUE,
@@ -69,6 +79,7 @@ export function openStore(path = DEFAULT_DB) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec('PRAGMA foreign_keys = ON');
+  db.exec('PRAGMA busy_timeout = 5000'); // радар пишет в ту же базу
   db.exec(SCHEMA);
 
   const row = (r) => r && { ...r, reasons: JSON.parse(r.reasons), needs_owner: !!r.needs_owner };
@@ -176,6 +187,49 @@ export function openStore(path = DEFAULT_DB) {
       if (!DRAFT_STATUSES.includes(status)) throw new Error(`неизвестный статус черновика: ${status}`);
       const r = db.prepare('UPDATE drafts SET status=?, updated_at=? WHERE id=?').run(status, now, id);
       if (!r.changes) throw new Error(`нет черновика ${id}`);
+    },
+    getDraft(id) {
+      const r = db.prepare('SELECT d.*, e.score FROM drafts d LEFT JOIN events e ON e.id = d.event_id WHERE d.id = ?').get(id);
+      return r && { ...r, gate_ok: !!r.gate_ok, gate_reasons: JSON.parse(r.gate_reasons) };
+    },
+    /**
+     * Действие владельца над черновиком «ждёт одобрения»: меняет черновик и пишет строку в журнал owner_actions
+     * одной транзакцией. action: 'одобрил' | 'отклонил' (detail.reason необязательна) | 'поправил' (text + gateOk + reasons:
+     * правка с непройденными воротами не принимается; в журнале остаются текст до и после).
+     */
+    ownerAct(id, action, { text, gateOk, reasons = [], reason = null } = {}, now = new Date().toISOString()) {
+      if (!OWNER_ACTIONS.includes(action)) throw new Error(`неизвестное действие владельца: ${action}`);
+      const d = db.prepare('SELECT * FROM drafts WHERE id = ?').get(id);
+      if (!d) throw new Error(`нет черновика ${id}`);
+      if (d.status !== 'ждёт одобрения') throw new Error(`черновик уже не ждёт одобрения (${d.status})`);
+      let detail = {};
+      db.exec('BEGIN');
+      try {
+        if (action === 'одобрил') {
+          if (!d.gate_ok) throw new Error('черновик не прошёл ворота кодом');
+          db.prepare('UPDATE drafts SET status=?, updated_at=? WHERE id=?').run('одобрен', now, id);
+        } else if (action === 'отклонил') {
+          detail = reason ? { reason: String(reason) } : {};
+          db.prepare('UPDATE drafts SET status=?, updated_at=? WHERE id=?').run('отклонён владельцем', now, id);
+        } else {
+          const next = String(text ?? '').trim();
+          if (!next) throw new Error('пустой текст');
+          if (!gateOk) throw new Error('правка не прошла ворота кодом');
+          detail = { before: d.text, after: next };
+          db.prepare('UPDATE drafts SET text=?, gate_ok=1, gate_reasons=?, updated_at=? WHERE id=?').run(next, JSON.stringify(reasons), now, id);
+        }
+        db.prepare('INSERT INTO owner_actions (draft_id, event_id, action, detail, created_at) VALUES (?,?,?,?,?)').run(id, d.event_id, action, JSON.stringify(detail), now);
+        db.exec('COMMIT');
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      }
+    },
+    ownerActions({ draftId, limit = 200 } = {}) {
+      const rows = draftId
+        ? db.prepare('SELECT * FROM owner_actions WHERE draft_id = ? ORDER BY id DESC LIMIT ?').all(draftId, limit)
+        : db.prepare('SELECT * FROM owner_actions ORDER BY id DESC LIMIT ?').all(limit);
+      return rows.map((r) => ({ ...r, detail: JSON.parse(r.detail) }));
     },
     close: () => db.close(),
   };
