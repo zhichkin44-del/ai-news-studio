@@ -28,6 +28,25 @@ CREATE TABLE IF NOT EXISTS event_sources (
   PRIMARY KEY (event_id, link)
 );
 CREATE INDEX IF NOT EXISTS idx_sources_link ON event_sources(link);
+CREATE TABLE IF NOT EXISTS items (
+  id TEXT PRIMARY KEY,
+  source TEXT NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT,
+  link TEXT NOT NULL,
+  published TEXT,
+  first_seen TEXT NOT NULL,
+  baseline INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_items_seen ON items(first_seen);
+CREATE TABLE IF NOT EXISTS polls (
+  source TEXT NOT NULL,
+  ts TEXT NOT NULL,
+  ok INTEGER NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_polls_ts ON polls(ts);
 `;
 
 const minIso = (a, b) => (!a ? b : !b ? a : a <= b ? a : b);
@@ -93,6 +112,26 @@ export function openStore(path = DEFAULT_DB) {
       const r = db.prepare('UPDATE events SET status=?, status_reason=?, updated_at=? WHERE id=?').run(status, reason, now, id);
       if (!r.changes) throw new Error(`нет события ${id}`);
     },
+    /** Радар: новые записи лент. first_seen ставится один раз (повтор id игнорируется). Возвращает число новых. */
+    addItems(items, { now = new Date().toISOString(), baseline = false } = {}) {
+      const ins = db.prepare('INSERT OR IGNORE INTO items (id, source, title, summary, link, published, first_seen, baseline) VALUES (?,?,?,?,?,?,?,?)');
+      let added = 0;
+      db.exec('BEGIN');
+      try {
+        for (const i of items) added += Number(ins.run(i.id, i.source, i.title, i.summary ?? null, i.link, i.published ?? null, now, baseline ? 1 : 0).changes);
+        db.exec('COMMIT');
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      }
+      return added;
+    },
+    hasItems: (source) => !!db.prepare('SELECT 1 FROM items WHERE source = ? LIMIT 1').get(source),
+    itemsSince: (since) => db.prepare('SELECT * FROM items WHERE first_seen >= ? ORDER BY first_seen, id').all(since),
+    recordPoll(source, { ok, count = 0, error = null }, ts = new Date().toISOString()) {
+      db.prepare('INSERT INTO polls (source, ts, ok, count, error) VALUES (?,?,?,?,?)').run(source, ts, ok ? 1 : 0, count, error);
+    },
+    pollsSince: (since) => db.prepare('SELECT * FROM polls WHERE ts >= ? ORDER BY ts').all(since),
     close: () => db.close(),
   };
 }

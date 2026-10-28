@@ -7,6 +7,9 @@
   "scripts": {
     "test": "node --test",
     "issue": "node src/issue.js",
-    "check-posts": "node src/check-posts.js"
+    "check-posts": "node src/check-posts.js",
+    "radar": "node src/radar.js",
+    "metrics": "node src/metrics.js",
+    "smoke": "node src/smoke.js"
   }
 }
