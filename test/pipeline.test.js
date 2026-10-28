@@ -4,7 +4,8 @@ import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseFeed, collect, loadSources } from '../src/collect.js';
-import { select, cluster, verify, tokens, similarity } from '../src/select.js';
+import { select, cluster, verify } from '../src/select.js';
+import { keys as tokens, weightedSimilarity as similarity } from '../src/cluster.js';
 import { buildIssue, makeIssue, issueFileName, DRAFT_PLACEHOLDER } from '../src/issue.js';
 import { gate } from '../src/gate.js';
 import { DEFAULT_CONFIG } from '../src/score.js';
@@ -50,7 +51,7 @@ test('сбор: ошибка одной ленты не роняет остал�
 test('токены и сходство', () => {
   assert.ok(similarity(tokens('Саммит по климату начался в Найроби'), tokens('Климатический саммит открылся в Найроби')) >= 0.4);
   assert.ok(similarity(tokens('Выборы в Бразилии'), tokens('Землетрясение в Японии')) < 0.4);
-  assert.equal(similarity(new Set(), new Set(['x'])), 0);
+  assert.equal(similarity(new Map(), new Map([['x', 1]])), 0);
 });
 
 test('кластеризация склеивает пересказы разных источников', async () => {
