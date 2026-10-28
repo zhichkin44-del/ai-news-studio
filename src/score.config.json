@@ -13,6 +13,18 @@
     "Громкие происшествия": ["теракт", "взрыв", "похищен", "беспорядк", "захват", "стрельб", "attack", "explosion", "hostage", "riot", "shooting", "bomb"],
     "Резкие движения рынков": ["обвал", "биржа", "биржи", "нефть", "нефти", "биткоин", "рубл", "stocks", "oil price", "bitcoin", "markets", "currency"]
   },
+  "owner_feed_min": 40,
+  "owner_feed_top_per_day": 5,
+  "owner_feed_tz_hours": 7,
+  "category_weights": { "world": 0, "science": 10, "tech": 8, "space": 10, "health": 8, "economy": 4 },
+  "wow": {
+    "points": 30,
+    "unconfirmed_points": 10,
+    "authority_points": 10,
+    "stop_penalty": 30,
+    "markers": ["first-ever", "first ever", "world's first", "breakthrough", "\\brecord", "\\bdiscover", "unprecedented", "first time", "first human", "first image", "surpass", "outperform", "game-chang", "прорыв", "впервые", "рекорд", "открыл", "открыт[аоы] ", "ученые создали", "первый в мире", "первая в мире", "первое в мире", "превзош", "беспрецедент", "сенсаци"],
+    "stop": ["\\breview", "\\bdeals?\\b", "discount", "\\bsale\\b", "sponsored", "обзор", "скидк", "промокод", "распродаж"]
+  },
   "threat": ["погиб", "жертв", "убит", "ранен", "пострадав", "угроз", "эскалац", "обвал", "killed", "dead", "death", "casualt", "injured", "threat", "escalat", "wounded"],
   "notable": ["санкци", "выбор", "саммит", "переговор", "sanction", "election", "summit", "talks", "protest"],
   "acute": ["теракт", "ядерн", "погиб", "жертв", "убит", "заложник", "terror", "nuclear", "killed", "dead", "hostage", "death toll"]

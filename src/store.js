@@ -100,6 +100,10 @@ export function openStore(path = DEFAULT_DB) {
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 5000'); // радар пишет в ту же базу
   db.exec(SCHEMA);
+  // миграция живой базы: категория события и «топ дня» (лента владельца)
+  const cols = db.prepare('PRAGMA table_info(events)').all().map((c) => c.name);
+  if (!cols.includes('category')) db.exec('ALTER TABLE events ADD COLUMN category TEXT');
+  if (!cols.includes('top_of_day')) db.exec('ALTER TABLE events ADD COLUMN top_of_day INTEGER NOT NULL DEFAULT 0');
   if (!db.prepare('PRAGMA table_info(items)').all().some((c) => c.name === 'image')) db.exec('ALTER TABLE items ADD COLUMN image TEXT');
 
   const row = (r) => r && { ...r, reasons: JSON.parse(r.reasons), needs_owner: !!r.needs_owner };
@@ -155,6 +159,22 @@ export function openStore(path = DEFAULT_DB) {
       if (!STATUSES.includes(status)) throw new Error(`неизвестный статус: ${status}`);
       const r = db.prepare('UPDATE events SET status=?, status_reason=?, updated_at=? WHERE id=?').run(status, reason, now, id);
       if (!r.changes) throw new Error(`нет события ${id}`);
+    },
+    setCategory(id, category) {
+      db.prepare('UPDATE events SET category=? WHERE id=?').run(category ?? null, id);
+    },
+    /** Лента владельца: top_of_day=1 у перечисленных id, у остальных из `scope` — 0. */
+    setTopOfDay(topIds, scopeIds) {
+      const up = db.prepare('UPDATE events SET top_of_day=? WHERE id=?');
+      const top = new Set(topIds);
+      db.exec('BEGIN');
+      try {
+        for (const id of scopeIds) up.run(top.has(id) ? 1 : 0, id);
+        db.exec('COMMIT');
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      }
     },
     /** Радар: новые записи лент. first_seen ставится один раз (повтор id игнорируется). Возвращает число новых. */
     addItems(items, { now = new Date().toISOString(), baseline = false } = {}) {

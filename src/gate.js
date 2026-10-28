@@ -4,6 +4,9 @@ export const MAX_LENGTH = 1024;
 export const OUTLETS = [
   'BBC', 'Би-би-си', 'Русская служба', 'DW', 'Deutsche Welle', 'Дойче велле', 'Новости ООН', 'UN News',
   'Al Jazeera', 'Аль-Джазира', 'Гардиан', 'Guardian', 'NPR',
+  // NASA, ESA и Nature — ещё и предмет новостей, поэтому запрещены только как названия лент
+  'Nature News', 'Science (AAAS) News', 'AAAS', 'Phys.org', 'ScienceDaily', 'N+1', 'Naked Science', 'NASA Breaking News', 'ESA Space News',
+  'MIT Technology Review', 'Ars Technica', 'TechCrunch', 'Hacker News', 'Хабр', 'STAT News', 'CNBC',
 ];
 
 /**

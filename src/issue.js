@@ -25,16 +25,28 @@ export const toPost = (c) => ({ title: c.title, body: DRAFT_PLACEHOLDER });
 
 export const firstSeenOf = (c) => c.items.map((i) => i.published).filter(Boolean).sort()[0] ?? null;
 
+export const sourceMetaOf = (list) => Object.fromEntries(list.map((s) => [s.id, { category: s.category, authority: !!s.authority }]));
+
+const CATEGORY_ORDER = ['science', 'space', 'health', 'tech', 'world', 'economy']; // при равенстве голосов; общая экономическая лента не перебивает мировую
+
+/** Категория события — та, к которой относится больше лент его кластера; признак «ведущий источник» — хотя бы одна такая лента. */
+export function eventMeta(c, sourceMeta = {}) {
+  const ms = c.sources.map((s) => sourceMeta[s.source]).filter(Boolean);
+  const votes = (k) => ms.filter((m) => m.category === k).length;
+  const category = CATEGORY_ORDER.filter((k) => votes(k)).sort((a, b) => votes(b) - votes(a))[0];
+  return { category, authority: ms.some((m) => m.authority) };
+}
+
 /**
  * Решение по событию: ворота + оценка → статус и причина.
  * Одно-источниковое выше порога не выпускается — ждёт владельца.
  */
-export function decide(c, { now = Date.now(), scoreConfig, gateOpts } = {}) {
+export function decide(c, { now = Date.now(), scoreConfig, gateOpts, sourceMeta } = {}) {
   const post = toPost(c);
   const g = gate(post, gateOpts);
   const cfg = scoreConfig ?? DEFAULT_CONFIG;
   const sc = score(
-    { title: c.title, summary: c.items.map((i) => i.summary).join(' '), firstSeen: firstSeenOf(c), independentSources: c.sourceCount, times: c.items.map((i) => i.published) },
+    { title: c.title, summary: c.items.map((i) => i.summary).join(' '), firstSeen: firstSeenOf(c), independentSources: c.sourceCount, ...eventMeta(c, sourceMeta), times: c.items.map((i) => i.published) },
     { now, config: cfg },
   );
   let status, reason;
@@ -49,13 +61,13 @@ export function decide(c, { now = Date.now(), scoreConfig, gateOpts } = {}) {
  * Готовим выпуск: в посты — события выше порога, прошедшие ворота, не одно-источниковые
  * и ещё не выпущенные; остальные остаются в событиях и хранилище со статусом и причиной.
  */
-export function buildIssue(clusters, { date = new Date(), sources = [], errors = [], gateOpts, scoreConfig, store } = {}) {
+export function buildIssue(clusters, { date = new Date(), sources = [], errors = [], gateOpts, scoreConfig, store, sourceMeta } = {}) {
   const cfg = scoreConfig ?? DEFAULT_CONFIG;
   const names = Object.fromEntries(sources.map((s) => [s.id, s.name]));
   const events = [];
   const posted = [];
   for (const c of clusters) {
-    const d = decide(c, { now: date.getTime(), scoreConfig: cfg, gateOpts });
+    const d = decide(c, { now: date.getTime(), scoreConfig: cfg, gateOpts, sourceMeta });
     const ev = {
       id: clusterId(c),
       title: c.title,
@@ -107,7 +119,7 @@ export async function makeIssue({ n = 30, outDir = 'out/test-channel', now = new
   const store = openStore(dbPath);
   let built;
   try {
-    built = buildIssue(clusters, { date: now, sources: list, errors, store, scoreConfig });
+    built = buildIssue(clusters, { date: now, sources: list, errors, store, scoreConfig, sourceMeta: sourceMetaOf(list) });
   } finally {
     store.close();
   }
