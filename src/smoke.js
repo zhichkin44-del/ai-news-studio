@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { fetchFeed, loadSources } from './collect.js';
 
 const FRESH_MS = 6 * 3600 * 1000;
+const SLOW_MS = 48 * 3600 * 1000; // редкие ленты (ООН выходит раз в сутки): окно свежести 48 часов
 
 /** Живой проход по лентам (в базу ничего не пишет). ok = нет ошибок и у каждой ленты есть запись младше 6 часов. */
 export async function smoke(sources, { loader = fetchFeed, now = Date.now() } = {}) {
@@ -11,7 +12,7 @@ export async function smoke(sources, { loader = fetchFeed, now = Date.now() } = 
     if (r.status === 'rejected') return { source: id, count: 0, newest: null, ageMin: null, error: String(r.reason?.message ?? r.reason), ok: false };
     const times = r.value.map((x) => Date.parse(x.published)).filter(Number.isFinite);
     const newest = times.length ? Math.max(...times) : null;
-    const fresh = times.filter((t) => now - t < FRESH_MS).length;
+    const fresh = times.filter((t) => now - t < (sources[i].slow ? SLOW_MS : FRESH_MS)).length;
     return { source: id, count: r.value.length, newest: newest && new Date(newest).toISOString(), ageMin: newest && Math.max(0, Math.round((now - newest) / 60000)), error: null, ok: fresh > 0 };
   });
   return { rows, ok: rows.every((r) => r.ok) };
