@@ -3,6 +3,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export const STATUSES = ['новое', 'отобрано', 'отклонено', 'выпущено'];
+export const DRAFT_STATUSES = ['ждёт одобрения', 'одобрен', 'отклонён владельцем', 'опубликован'];
+export const REJECTED_BY_CODE = 'отклонён кодом';
 export const DEFAULT_DB = 'data/news.db';
 
 const SCHEMA = `
@@ -47,6 +49,17 @@ CREATE TABLE IF NOT EXISTS polls (
   error TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_polls_ts ON polls(ts);
+CREATE TABLE IF NOT EXISTS drafts (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL UNIQUE,
+  style TEXT,
+  text TEXT NOT NULL,
+  status TEXT NOT NULL,
+  gate_ok INTEGER NOT NULL DEFAULT 0,
+  gate_reasons TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `;
 
 const minIso = (a, b) => (!a ? b : !b ? a : a <= b ? a : b);
@@ -132,6 +145,38 @@ export function openStore(path = DEFAULT_DB) {
       db.prepare('INSERT INTO polls (source, ts, ok, count, error) VALUES (?,?,?,?,?)').run(source, ts, ok ? 1 : 0, count, error);
     },
     pollsSince: (since) => db.prepare('SELECT * FROM polls WHERE ts >= ? ORDER BY ts').all(since),
+    /** summary события — из первой записи ленты по его ссылкам (наружу ссылки не отдаём). */
+    summaryOf(eventId) {
+      const r = db.prepare("SELECT i.summary FROM event_sources s JOIN items i ON i.link = s.link WHERE s.event_id = ? AND i.summary IS NOT NULL AND i.summary <> '' ORDER BY s.published, s.link LIMIT 1").get(eventId);
+      return r?.summary ?? '';
+    },
+    /**
+     * Черновик события. Один на событие: если уже есть и он не «отклонён кодом» — не трогаем
+     * (возвращает { saved:false }); отклонённый кодом заменяется новой версией.
+     * d: { eventId, style, text, gateOk, reasons }
+     */
+    addDraft(d, now = new Date().toISOString()) {
+      const prev = db.prepare('SELECT * FROM drafts WHERE event_id = ?').get(d.eventId);
+      if (prev && prev.status !== REJECTED_BY_CODE) return { saved: false, id: prev.id, status: prev.status };
+      const status = d.gateOk ? 'ждёт одобрения' : REJECTED_BY_CODE;
+      const id = prev?.id ?? `d-${d.eventId}`;
+      const vals = [d.style ?? null, d.text, status, d.gateOk ? 1 : 0, JSON.stringify(d.reasons ?? []), now];
+      if (prev) db.prepare('UPDATE drafts SET style=?, text=?, status=?, gate_ok=?, gate_reasons=?, updated_at=? WHERE id=?').run(...vals, id);
+      else db.prepare('INSERT INTO drafts (style, text, status, gate_ok, gate_reasons, updated_at, id, event_id, created_at) VALUES (?,?,?,?,?,?,?,?,?)').run(...vals, id, d.eventId, now);
+      return { saved: true, id, status };
+    },
+    /** Есть ли у события живой черновик (не «отклонён кодом»). */
+    hasDraft: (eventId) => !!db.prepare('SELECT 1 FROM drafts WHERE event_id = ? AND status <> ?').get(eventId, REJECTED_BY_CODE),
+    listDrafts({ status } = {}) {
+      const sql = `SELECT d.*, e.score FROM drafts d LEFT JOIN events e ON e.id = d.event_id ${status ? 'WHERE d.status = ?' : ''} ORDER BY d.created_at, d.id`;
+      const rows = status ? db.prepare(sql).all(status) : db.prepare(sql).all();
+      return rows.map((r) => ({ ...r, gate_ok: !!r.gate_ok, gate_reasons: JSON.parse(r.gate_reasons) }));
+    },
+    setDraftStatus(id, status, now = new Date().toISOString()) {
+      if (!DRAFT_STATUSES.includes(status)) throw new Error(`неизвестный статус черновика: ${status}`);
+      const r = db.prepare('UPDATE drafts SET status=?, updated_at=? WHERE id=?').run(status, now, id);
+      if (!r.changes) throw new Error(`нет черновика ${id}`);
+    },
     close: () => db.close(),
   };
 }

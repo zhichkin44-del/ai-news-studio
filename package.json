@@ -10,6 +10,9 @@
     "check-posts": "node src/check-posts.js",
     "radar": "node src/radar.js",
     "metrics": "node src/metrics.js",
-    "smoke": "node src/smoke.js"
+    "smoke": "node src/smoke.js",
+    "batch": "node src/batch.js",
+    "ingest": "node src/ingest.js",
+    "drafts": "node src/drafts.js"
   }
 }
