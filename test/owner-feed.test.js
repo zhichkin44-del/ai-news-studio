@@ -119,7 +119,7 @@ test('select: top_of_day и категория в базе, идемпотент
 // --- формат лент ---
 test('sources.json: формат лент', () => {
   const { sources } = JSON.parse(readFileSync(new URL('../sources.json', import.meta.url), 'utf8'));
-  const CATS = ['world', 'science', 'tech', 'space', 'health', 'economy'];
+  const CATS = ['world', 'science', 'tech', 'space', 'health', 'economy', 'war', 'russia', 'accidents', 'society', 'celebrity', 'sport'];
   assert.ok(sources.length >= 19);
   const ids = new Set();
   for (const s of sources) {

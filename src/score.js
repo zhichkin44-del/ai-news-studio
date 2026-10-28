@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { audienceScore, DEFAULT_AUDIENCE } from './audience.js';
 
 export const DEFAULT_CONFIG = JSON.parse(readFileSync(new URL('./score.config.json', import.meta.url), 'utf8'));
 
@@ -12,7 +13,7 @@ const ms = (iso) => (iso ? Date.parse(iso) : NaN);
  *   category?: world|science|tech|space|health|economy, authority?: true — есть ведущий источник категории }.
  * Возвращает { score, reasons[], needsOwner, single, acute, topic }.
  */
-export function score(event, { now = Date.now(), config = DEFAULT_CONFIG } = {}) {
+export function score(event, { now = Date.now(), config = DEFAULT_CONFIG, audience = DEFAULT_AUDIENCE } = {}) {
   const reasons = [];
   const first = ms(event.firstSeen);
   const ageMin = Number.isNaN(first) ? Infinity : Math.max(0, (now - first) / 60000);
@@ -39,7 +40,7 @@ export function score(event, { now = Date.now(), config = DEFAULT_CONFIG } = {})
   // наука/технологии/космос/медицина/экономика: категорийный вес, «вау»-маркеры, лидер категории, стоп-слова
   let extra = 0;
   const cat = event.category ?? null;
-  if (cat && cat !== 'world' && config.wow) {
+  if (cat && cat !== 'world' && config.wow && cat in (config.category_weights ?? {})) {
     const wc = config.wow;
     const catPts = config.category_weights?.[cat] ?? 0;
     const head = norm(event.title); // маркеры — только по заголовку: в описаниях «discover the…» почти везде
@@ -63,11 +64,29 @@ export function score(event, { now = Date.now(), config = DEFAULT_CONFIG } = {})
     }
   }
 
+  // релевантность массовой русскоязычной аудитории (профиль src/audience.json)
+  const aud = audience ? audienceScore(event, audience) : { points: 0, reasons: [], category: null };
+  reasons.push(...aud.reasons);
+
   const acute = matches(text, config.acute);
   const single = n < 2;
   if (single) reasons.push('одно-источниковое: только с одобрения владельца');
   if (acute) reasons.push('острое: только с одобрения владельца');
-  return { score: Math.max(0, fr + srcPts + topicPts + growthPts + extra), reasons, needsOwner: single || acute, single, acute, topic };
+  return {
+    score: Math.max(0, fr + srcPts + topicPts + growthPts + extra + aud.points),
+    reasons, needsOwner: single || acute, single, acute, topic, audience: aud.points, audienceCategory: aud.category,
+  };
+}
+
+/**
+ * Срочное: оценка ≥ порога и подтверждено 2+ источниками (издателями), опубликовавшими за последние 60 минут.
+ * sources: [{ published }] — по одной записи на издателя (как в кластере).
+ */
+export function isBreaking(scoreValue, sources, { now = Date.now(), config = DEFAULT_CONFIG } = {}) {
+  const b = config.breaking ?? DEFAULT_CONFIG.breaking;
+  const from = now - b.window_minutes * 60000;
+  const recent = sources.map((s) => ms(s.published)).filter((t) => t >= from && t <= now + 60000).length;
+  return scoreValue >= b.min_score && recent >= b.min_sources;
 }
 
 /** 'urgent' (≥70) | 'plan' (40–69) | 'below'. */

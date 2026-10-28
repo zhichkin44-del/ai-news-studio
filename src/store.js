@@ -104,6 +104,7 @@ export function openStore(path = DEFAULT_DB) {
   const cols = db.prepare('PRAGMA table_info(events)').all().map((c) => c.name);
   if (!cols.includes('category')) db.exec('ALTER TABLE events ADD COLUMN category TEXT');
   if (!cols.includes('top_of_day')) db.exec('ALTER TABLE events ADD COLUMN top_of_day INTEGER NOT NULL DEFAULT 0');
+  if (!cols.includes('breaking')) db.exec('ALTER TABLE events ADD COLUMN breaking INTEGER NOT NULL DEFAULT 0');
   if (!db.prepare('PRAGMA table_info(items)').all().some((c) => c.name === 'image')) db.exec('ALTER TABLE items ADD COLUMN image TEXT');
 
   const row = (r) => r && { ...r, reasons: JSON.parse(r.reasons), needs_owner: !!r.needs_owner };
@@ -162,6 +163,10 @@ export function openStore(path = DEFAULT_DB) {
     },
     setCategory(id, category) {
       db.prepare('UPDATE events SET category=? WHERE id=?').run(category ?? null, id);
+    },
+    /** Срочное: breaking=1 ставится и не снимается (флаг для уведомлений, история остаётся). */
+    setBreaking(id) {
+      db.prepare('UPDATE events SET breaking=1 WHERE id=?').run(id);
     },
     /** Лента владельца: top_of_day=1 у перечисленных id, у остальных из `scope` — 0. */
     setTopOfDay(topIds, scopeIds) {

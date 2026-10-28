@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { cluster } from './cluster.js';
 import { loadSources } from './collect.js';
 import { decide, clusterId, firstSeenOf, eventMeta, sourceMetaOf } from './issue.js';
-import { DEFAULT_CONFIG } from './score.js';
+import { DEFAULT_CONFIG, isBreaking } from './score.js';
 import { openStore, DEFAULT_DB } from './store.js';
 
 /** Статус по решению decide: отобрано / отклонено (ворота) / новое (ниже порога, один источник — может подрасти). */
@@ -49,7 +49,7 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
   const clusters = cluster(items, undefined, groups);
   const stamp = now.toISOString();
   const seen = new Set();
-  const out = { items: items.length, events: 0, selected: 0, rejected: 0, fresh: 0 };
+  const out = { items: items.length, events: 0, selected: 0, rejected: 0, fresh: 0, breaking: 0 };
   for (const c of clusters) {
     const d = decide(c, { now: now.getTime(), scoreConfig: cfg, sourceMeta });
     const r = store.upsert(
@@ -61,7 +61,13 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
     );
     if (seen.has(r.id)) continue;
     seen.add(r.id);
-    store.setCategory(r.id, eventMeta(c, sourceMeta).category);
+    const srcCat = eventMeta(c, sourceMeta).category;
+    // лента науки/техники/космоса/медицины держит категорию ленты; остальным — категория темы аудитории
+    store.setCategory(r.id, ['science', 'space', 'health', 'tech'].includes(srcCat) ? srcCat : d.sc.audienceCategory ?? srcCat);
+    if (isBreaking(d.sc.score, c.sources, { now: now.getTime(), config: cfg })) {
+      store.setBreaking(r.id);
+      out.breaking++;
+    }
     out.events++;
     let [status, reason] = selectStatus(c, d);
     if (r.status === 'выпущено' || store.hasDraft(r.id)) {
@@ -101,7 +107,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       names: Object.fromEntries(sources.map((s) => [s.id, s.name])),
       sourceMeta: sourceMetaOf(sources),
     });
-    console.log(`записей ${r.items}, событий ${r.events}, отобрано ${r.selected}, отклонено ${r.rejected}, в топе дня ${r.top}`);
+    console.log(`записей ${r.items}, событий ${r.events}, отобрано ${r.selected}, отклонено ${r.rejected}, в топе дня ${r.top}, срочных ${r.breaking}`);
   } finally {
     store.close();
   }

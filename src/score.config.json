@@ -2,6 +2,7 @@
   "_comment": "Стартовые значения из docs/methodology/01-selection.md; калибруются по замеру радара без правки кода.",
   "thresholds": { "publish": 40, "urgent": 70 },
   "freshness": [ { "maxMinutes": 15, "points": 30 }, { "maxMinutes": 60, "points": 20 }, { "maxMinutes": 180, "points": 10 } ],
+  "breaking": { "min_score": 70, "min_sources": 2, "window_minutes": 60 },
   "sources": { "1": 5, "2": 15, "3": 25 },
   "topic": { "listed_threat": 25, "listed": 15, "notable": 5 },
   "growth": { "windowMinutes": 30, "tiers": [ { "min": 10, "points": 20 }, { "min": 4, "points": 10 } ] },

@@ -17,7 +17,7 @@ const loader = async (s) => parseFeed(await fx(s.id === 'a' ? 'a.rss.xml' : 'b.a
 
 test('score: пример из методики = 90', () => {
   const times = [min(10), ...Array.from({ length: 12 }, (_, i) => min(10 - 0.5 * (i + 1)))];
-  const r = score({ title: 'Землетрясение в стране Y, есть погибшие', firstSeen: min(10), independentSources: 2, times }, { now: NOW });
+  const r = score({ title: 'Землетрясение в стране Y, есть погибшие', firstSeen: min(10), independentSources: 2, times }, { now: NOW, audience: null });
   assert.equal(r.score, 90);
   assert.equal(r.reasons.length, 4 + 1); // 4 признака + пометка «острое»
   assert.equal(r.acute, true);
@@ -40,7 +40,7 @@ test('score: источники 1/2/3+, одно-источниковое — ne
 });
 
 test('score: тема и рост', () => {
-  const t = (title) => score({ title, firstSeen: min(500), independentSources: 3 }, { now: NOW });
+  const t = (title) => score({ title, firstSeen: min(500), independentSources: 3 }, { now: NOW, audience: null });
   assert.equal(t('Трамп подписал указ о пошлинах').score, 25 + 15);
   assert.equal(t('Ракетный удар: есть погибшие').score, 25 + 25);
   assert.equal(t('Новые санкции против компании').score, 25 + 5);

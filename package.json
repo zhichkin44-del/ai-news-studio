@@ -12,6 +12,7 @@
     "metrics": "node src/metrics.js",
     "smoke": "node src/smoke.js",
     "select": "node src/select-run.js",
+    "digest": "node src/digest.js",
     "batch":"node src/batch.js",
     "ingest": "node src/ingest.js",
     "drafts": "node src/drafts.js",

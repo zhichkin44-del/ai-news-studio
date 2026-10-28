@@ -25,16 +25,17 @@ export const toPost = (c) => ({ title: c.title, body: DRAFT_PLACEHOLDER });
 
 export const firstSeenOf = (c) => c.items.map((i) => i.published).filter(Boolean).sort()[0] ?? null;
 
-export const sourceMetaOf = (list) => Object.fromEntries(list.map((s) => [s.id, { category: s.category, authority: !!s.authority }]));
+export const sourceMetaOf = (list) => Object.fromEntries(list.map((s) => [s.id, { category: s.category, authority: !!s.authority, lang: s.lang }]));
 
-const CATEGORY_ORDER = ['science', 'space', 'health', 'tech', 'world', 'economy']; // при равенстве голосов; общая экономическая лента не перебивает мировую
+const CATEGORY_ORDER = ['science', 'space', 'health', 'tech', 'war', 'russia', 'accidents', 'celebrity', 'sport', 'society', 'world', 'economy']; // при равенстве голосов; общая экономическая лента не перебивает мировую
 
 /** Категория события — та, к которой относится больше лент его кластера; признак «ведущий источник» — хотя бы одна такая лента. */
 export function eventMeta(c, sourceMeta = {}) {
   const ms = c.sources.map((s) => sourceMeta[s.source]).filter(Boolean);
   const votes = (k) => ms.filter((m) => m.category === k).length;
   const category = CATEGORY_ORDER.filter((k) => votes(k)).sort((a, b) => votes(b) - votes(a))[0];
-  return { category, authority: ms.some((m) => m.authority) };
+  const lang = ms.filter((m) => m.lang);
+  return { category, authority: ms.some((m) => m.authority), ...(lang.length && { ru: lang.some((m) => m.lang === 'ru') }) };
 }
 
 /**
