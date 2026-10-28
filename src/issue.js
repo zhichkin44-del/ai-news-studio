@@ -23,7 +23,7 @@ export function clusterId(c) {
 /** Пост: заголовок + поле пересказа. Ни ссылок, ни источников. */
 export const toPost = (c) => ({ title: c.title, body: DRAFT_PLACEHOLDER });
 
-const firstSeenOf = (c) => c.items.map((i) => i.published).filter(Boolean).sort()[0] ?? null;
+export const firstSeenOf = (c) => c.items.map((i) => i.published).filter(Boolean).sort()[0] ?? null;
 
 /**
  * Решение по событию: ворота + оценка → статус и причина.

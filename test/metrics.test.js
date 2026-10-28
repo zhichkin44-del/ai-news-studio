@@ -52,6 +52,20 @@ test('счётчики событий, дублей и независимых и
 
 function round3(x) { return Math.round(x * 1000) / 1000; }
 
+test('горячие события: 5 горячих, 3 с двумя источниками → 60 %', () => {
+  const store = openStore(':memory:');
+  const topics = ['Missile strike hits Kharkiv', 'Earthquake rocks Chile coast', 'Explosion at Berlin station', 'Hostage crisis in Lagos', 'Oil price crash in London'];
+  topics.forEach((t, n) => {
+    add(store, 'a', n, t, { pub: 5 });
+    if (n < 3) add(store, 'b', n, `${t}, officials say`, { pub: 4 });
+  });
+  add(store, 'c', 1, 'Local bakery wins award', { pub: 5 }); // не горячее: тема вне списка
+  const m = computeMetrics(store, { now: NOW, sources: SOURCES });
+  assert.equal(m.hot_events, 5);
+  assert.equal(m.hot_multi_source_share, 0.6);
+  assert.equal(m.multi_source_share, 0.5); // 3 из 6 — для справки
+});
+
 test('задержка: baseline и записи без даты не считаются', () => {
   const m = computeMetrics(fill(), { now: NOW, sources: SOURCES });
   // замеряются: a1 (1 мин), b1 (10 мин), a2 (2 мин), a3 (2 мин), c1 (50 мин)
@@ -82,6 +96,8 @@ test('пустая база не падает', () => {
   const m = computeMetrics(openStore(':memory:'), { now: NOW, sources: SOURCES });
   assert.equal(m.events, 0);
   assert.equal(m.multi_source_share, null);
+  assert.equal(m.hot_events, 0);
+  assert.equal(m.hot_multi_source_share, null);
   assert.equal(m.problem_feeds.length, 4);
   assert.ok(formatMetrics(m).includes('Проблемные ленты'));
 });

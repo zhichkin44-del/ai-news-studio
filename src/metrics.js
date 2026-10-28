@@ -2,12 +2,15 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cluster } from './select.js';
+import { score } from './score.js';
+import { firstSeenOf } from './issue.js';
 import { loadSources } from './collect.js';
 import { openStore, DEFAULT_DB } from './store.js';
 
 export const OUT_PATH = 'docs/eval/metrics-latest.json';
 export const FAST_MS = 5 * 60 * 1000;
 export const FRESH_MS = 6 * 3600 * 1000;
+export const HOT_SCORE = 40;
 
 const round = (x, d = 3) => (x == null ? null : Math.round(x * 10 ** d) / 10 ** d);
 const share = (n, d) => (d ? round(n / d) : null);
@@ -46,6 +49,10 @@ export function computeMetrics(store, { now = new Date(), hours = 24, sources = 
 
   const clusters = items.length ? cluster(items, 0.4, groups) : [];
   const multi = clusters.filter((c) => c.sourceCount >= 2).length;
+  const hot = clusters.filter((c) => score(
+    { title: c.title, summary: c.items.map((i) => i.summary).join(' '), firstSeen: firstSeenOf(c), independentSources: c.sourceCount, times: c.items.map((i) => i.published) },
+    { now: now.getTime() },
+  ).score >= HOT_SCORE);
 
   const ids = [...new Set([...sources.map((s) => s.id), ...items.map((i) => i.source), ...polls.map((p) => p.source)])];
   const feeds = ids.map((id) => {
@@ -78,6 +85,8 @@ export function computeMetrics(store, { now = new Date(), hours = 24, sources = 
     events_by_feed: Object.fromEntries(feeds.map((f) => [f.source, clusters.filter((c) => c.items.some((i) => i.source === f.source)).length])),
     latency: latencyStats(items),
     multi_source_share: share(multi, clusters.length),
+    hot_events: hot.length,
+    hot_multi_source_share: share(hot.filter((c) => c.sourceCount >= 2).length, hot.length),
     duplicates_merged_share: share(items.length - clusters.length, items.length),
     unique_items_share: share(distinctLinks, items.length),
     problem_feeds: feeds.filter((f) => f.problem).map((f) => ({ source: f.source, problem: f.problem, errors: f.errors, fresh_6h: f.fresh_6h })),
@@ -93,7 +102,8 @@ export function formatMetrics(m) {
     `Метрики сбора за ${m.period_hours} ч (с ${m.since})`,
     `Записей: ${m.items}; событий (кластеров): ${m.events}`,
     `Задержка (first_seen − published, без первого опроса ленты): медиана ${sec(m.latency.median_sec)}, p90 ${sec(m.latency.p90_sec)}, не позже 5 мин: ${pct(m.latency.within_5min)} (замерено ${m.latency.measured})`,
-    `События с 2+ независимыми источниками: ${pct(m.multi_source_share)}`,
+    `Горячие события (оценка ≥ ${HOT_SCORE}): ${m.hot_events}; из них с 2+ независимыми источниками: ${pct(m.hot_multi_source_share)}`,
+    `Все события с 2+ независимыми источниками (для справки): ${pct(m.multi_source_share)}`,
     `Дублей склеено в кластеры: ${pct(m.duplicates_merged_share)}; записей без повторов: ${pct(m.unique_items_share)}`,
     '',
     'лента | записей | событий | опросов | ошибок | свежих 6ч | медиана | ≤5 мин',
