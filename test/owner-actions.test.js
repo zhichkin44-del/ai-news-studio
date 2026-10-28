@@ -49,3 +49,13 @@ test('правка без ворот, пустая и повторное дей�
 test('нет черновика — ошибка', () => {
   assert.throws(() => openStore(':memory:').ownerAct('d-nope', 'одобрил'), /нет черновика/);
 });
+
+test('отметки ленты: важно / не то пишутся в журнал, статус черновика не меняется', () => {
+  const s = fixture();
+  s.ownerMark('d-e1', 'важно', {}, LATER);
+  s.ownerMark('d-e1', 'не то', { reason: 'повтор' }, LATER);
+  assert.deepEqual(s.ownerActions().map((a) => [a.action, a.detail]), [['не то', { reason: 'повтор' }], ['важно', {}]]);
+  assert.equal(s.getDraft('d-e1').status, 'ждёт одобрения');
+  assert.throws(() => s.ownerMark('d-e1', 'одобрил'), /неизвестная отметка/);
+  assert.throws(() => s.ownerMark('нет', 'важно'), /нет черновика/);
+});

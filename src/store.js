@@ -5,6 +5,8 @@ import { dirname } from 'node:path';
 export const STATUSES = ['новое', 'отобрано', 'отклонено', 'выпущено'];
 export const DRAFT_STATUSES = ['ждёт одобрения', 'одобрен', 'отклонён владельцем', 'опубликован'];
 export const OWNER_ACTIONS = ['одобрил', 'поправил', 'отклонил'];
+// Отметки владельца в ленте «для себя» (не меняют статус черновика): основа для обучения вкуса.
+export const OWNER_MARKS = ['важно', 'снял важно', 'не то'];
 export const REJECTED_BY_CODE = 'отклонён кодом';
 export const DEFAULT_DB = 'data/news.db';
 
@@ -242,6 +244,17 @@ export function openStore(path = DEFAULT_DB) {
         db.exec('ROLLBACK');
         throw e;
       }
+    },
+    /**
+     * Отметка владельца в ленте: 'важно' (лайк), 'снял важно', 'не то' (скрыть; detail.reason — неинтересно | повтор | неверно).
+     * Статус черновика не меняется — пишется только строка в owner_actions, в любом статусе.
+     */
+    ownerMark(id, action, { reason = null } = {}, now = new Date().toISOString()) {
+      if (!OWNER_MARKS.includes(action)) throw new Error(`неизвестная отметка: ${action}`);
+      const d = db.prepare('SELECT event_id FROM drafts WHERE id = ?').get(id);
+      if (!d) throw new Error(`нет черновика ${id}`);
+      const detail = action === 'не то' && reason ? { reason: String(reason) } : {};
+      db.prepare('INSERT INTO owner_actions (draft_id, event_id, action, detail, created_at) VALUES (?,?,?,?,?)').run(id, d.event_id, action, JSON.stringify(detail), now);
     },
     ownerActions({ draftId, limit = 200 } = {}) {
       const rows = draftId
