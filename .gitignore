@@ -1,0 +1,4 @@
+out/
+.studio-tmp/
+node_modules/
+.env

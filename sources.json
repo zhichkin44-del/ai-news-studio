@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-10-28",
+  "sources": [
+    {"id": "bbc-world", "group": "bbc", "name": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "lang": "en"},
+    {"id": "bbc-russian", "group": "bbc", "name": "BBC Русская служба", "url": "https://feeds.bbci.co.uk/russian/rss.xml", "lang": "ru"},
+    {"id": "dw-ru", "name": "DW на русском", "url": "https://rss.dw.com/xml/rss-ru-all", "lang": "ru"},
+    {"id": "un-ru", "name": "Новости ООН", "url": "https://news.un.org/feed/subscribe/ru/news/all/rss.xml", "lang": "ru"},
+    {"id": "aljazeera", "name": "Al Jazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml", "lang": "en"},
+    {"id": "guardian-world", "name": "The Guardian World", "url": "https://www.theguardian.com/world/rss", "lang": "en"},
+    {"id": "npr-world", "name": "NPR World", "url": "https://feeds.npr.org/1004/rss.xml", "lang": "en"}
+  ]
+}

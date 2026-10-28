@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>A</title>
+<item><title><![CDATA[Землетрясение магнитудой 6,5 произошло у берегов Японии]]></title><link>https://a.example/1</link><guid>a-1</guid><description>&lt;p&gt;Тестовое описание &amp;amp; детали&lt;/p&gt;</description><pubDate>Tue, 27 Oct 2026 10:00:00 GMT</pubDate></item>
+<item><title>Саммит по климату начался в Найроби</title><link>https://a.example/2</link><guid>a-2</guid><description>Описание 2</description><pubDate>Tue, 27 Oct 2026 08:00:00 GMT</pubDate></item>
+<item><title>Редкая новость про рыбаков из Мурманска</title><link>https://a.example/3</link><pubDate>Mon, 26 Oct 2026 08:00:00 GMT</pubDate></item>
+<item><title></title><link>https://a.example/bad</link></item>
+</channel></rss>
