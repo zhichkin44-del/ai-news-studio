@@ -7,11 +7,13 @@ import { parseFeed, collect, loadSources } from '../src/collect.js';
 import { select, cluster, verify, tokens, similarity } from '../src/select.js';
 import { buildIssue, makeIssue, issueFileName, DRAFT_PLACEHOLDER } from '../src/issue.js';
 import { gate } from '../src/gate.js';
+import { DEFAULT_CONFIG } from '../src/score.js';
 
 const fx = (name) => readFile(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const A = { id: 'a', name: 'Источник А', url: 'x://a' };
 const B = { id: 'b', name: 'Источник Б', url: 'x://b' };
 const NOW = Date.parse('2026-10-27T12:00:00Z');
+const LOW = { ...DEFAULT_CONFIG, thresholds: { publish: 0, urgent: 70 } }; // порог снят: фикстуры проверяют форму выпуска
 
 const loader = async (s) => parseFeed(await fx(s.id === 'a' ? 'a.rss.xml' : s.id === 'b' ? 'b.atom.xml' : 'none'), s);
 
@@ -91,9 +93,10 @@ test('отбор: больше источников и свежесть выше
 
 test('выпуск: посты без ссылок и источников; источники — в events', async () => {
   const items = [...parseFeed(await fx('a.rss.xml'), A), ...parseFeed(await fx('b.atom.xml'), B)];
-  const { markdown: md, events } = buildIssue(select(items, { now: NOW }), { date: new Date(NOW), sources: [A, B], errors: [{ source: 'c', error: 'HTTP 404' }] });
+  const { markdown: md, events } = buildIssue(select(items, { now: NOW }), { date: new Date(NOW), sources: [A, B], errors: [{ source: 'c', error: 'HTTP 404' }], scoreConfig: LOW });
   assert.match(md, /<!-- служебно: подтверждено/);
-  assert.match(md, /<!-- служебно: не подтверждено/);
+  assert.doesNotMatch(md, /не подтверждено/); // одно-источниковое наружу не идёт
+  assert.ok(events.events.some((e) => e.status === 'отобрано' && e.verification === 'не подтверждено' && e.needs_owner));
   assert.ok(md.includes(DRAFT_PLACEHOLDER));
   assert.doesNotMatch(md, /https?:|www\.|t\.me|@\w|Источник А|Источник Б|\]\(/);
   for (const it of items) {
@@ -108,7 +111,7 @@ test('выпуск: посты без ссылок и источников; ис
 
 test('выпуск: пост, не прошедший ворота, не попадает в файл, но остаётся в events', () => {
   const c = cluster([{ id: 'a:1', title: 'BBC: взрыв на заводе', summary: '', link: 'https://a.example/1', source: 'a', published: '2026-10-27T10:00:00Z' }]);
-  const { markdown, events } = buildIssue(c, { date: new Date(NOW), sources: [A] });
+  const { markdown, events } = buildIssue(c, { date: new Date(NOW), sources: [A], scoreConfig: LOW });
   assert.doesNotMatch(markdown, /BBC/);
   assert.equal(events.events[0].gate.ok, false);
 });
@@ -161,7 +164,7 @@ test('имя файла выпуска ГГГГ-ММ-ДД-ЧЧММ', () => {
 test('makeIssue пишет файл в тестовый канал на диске, без сети', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'news-'));
   try {
-    const { path, clusters } = await makeIssue({ outDir: dir, now: new Date('2026-10-27T12:00:00Z'), sources: [A, B], loader });
+    const { path, clusters } = await makeIssue({ outDir: dir, now: new Date('2026-10-27T12:00:00Z'), sources: [A, B], loader, dbPath: ':memory:', scoreConfig: LOW });
     assert.equal(path, `${dir}/2026-10-27-1200.md`);
     assert.deepEqual((await readdir(dir)).sort(), ['2026-10-27-1200.events.json', '2026-10-27-1200.md']);
     assert.equal(clusters.length, 3);

@@ -1,0 +1,19 @@
+{
+  "_comment": "Стартовые значения из docs/methodology/01-selection.md; калибруются по замеру радара без правки кода.",
+  "thresholds": { "publish": 40, "urgent": 70 },
+  "freshness": [ { "maxMinutes": 15, "points": 30 }, { "maxMinutes": 60, "points": 20 }, { "maxMinutes": 180, "points": 10 } ],
+  "sources": { "1": 5, "2": 15, "3": 25 },
+  "topic": { "listed_threat": 25, "listed": 15, "notable": 5 },
+  "growth": { "windowMinutes": 30, "tiers": [ { "min": 10, "points": 20 }, { "min": 4, "points": 10 } ] },
+  "topics": {
+    "Трамп и США": ["трамп", "белый дом", "белого дома", "вашингтон", "trump", "white house", "us president"],
+    "Путин и Россия": ["путин", "кремл", "россия", "россии", "putin", "kremlin", "russia"],
+    "Войны и конфликты": ["войн", "удар", "обстрел", "перемири", "ракет", "наступлен", "украин", "израил", "war ", "strike", "ceasefire", "missile", "troops", "gaza", "ukraine", "israel", "hamas"],
+    "Катастрофы": ["землетряс", "наводнен", "авиакатастроф", "крушен", "пожар", "эпидеми", "ураган", "цунами", "извержен", "earthquake", "flood", "crash", "wildfire", "hurricane", "tsunami", "outbreak"],
+    "Громкие происшествия": ["теракт", "взрыв", "похищен", "беспорядк", "захват", "стрельб", "attack", "explosion", "hostage", "riot", "shooting", "bomb"],
+    "Резкие движения рынков": ["обвал", "биржа", "биржи", "нефть", "нефти", "биткоин", "рубл", "stocks", "oil price", "bitcoin", "markets", "currency"]
+  },
+  "threat": ["погиб", "жертв", "убит", "ранен", "пострадав", "угроз", "эскалац", "обвал", "killed", "dead", "death", "casualt", "injured", "threat", "escalat", "wounded"],
+  "notable": ["санкци", "выбор", "саммит", "переговор", "sanction", "election", "summit", "talks", "protest"],
+  "acute": ["теракт", "ядерн", "погиб", "жертв", "убит", "заложник", "terror", "nuclear", "killed", "dead", "hostage", "death toll"]
+}

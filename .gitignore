@@ -1,4 +1,5 @@
 out/
+data/
 .studio-tmp/
 node_modules/
 .env
