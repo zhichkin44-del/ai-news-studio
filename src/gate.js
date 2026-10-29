@@ -12,6 +12,9 @@ export const OUTLETS = [
   'Новая газета', 'Газета.ру', 'Чемпионат.com',
   // NASA, ESA и Nature — ещё и предмет новостей, поэтому запрещены только как названия лент
   'Nature News', 'Science (AAAS) News', 'AAAS', 'Phys.org', 'ScienceDaily', 'N+1', 'Naked Science', 'NASA Breaking News', 'ESA Space News',
+  'USGS Earthquakes', 'GDACS', 'Anthropic Status', 'OpenAI Status', 'GitHub Status', 'Google Cloud Status', 'NobelPrize.org',
+  'France 24', 'NYT', 'ABC News', 'ESPN', 'Sky Sports', 'Variety', 'TMZ', 'E! Online', 'Space.com', 'New Scientist', 'Scientific American',
+  'Engadget', 'CoinDesk', 'Cointelegraph', 'Life.ru', 'Московский комсомолец', 'Комсомольская правда', 'Российская газета', 'Ведомости', 'Спорт-Экспресс',
   'MIT Technology Review', 'Ars Technica', 'TechCrunch', 'Hacker News', 'Хабр', 'STAT News', 'CNBC',
 ];
 

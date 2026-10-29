@@ -51,8 +51,37 @@ export function parseMediaImage(block) {
   return cands[0]?.url ?? null;
 }
 
-/** Разбор RSS 2.0 / Atom в нормализованные записи. */
+/** USGS GeoJSON (землетрясения): запись на событие; source.min_mag отсекает слабые толчки. */
+export function parseGeoJson(text, source) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const f of data?.features ?? []) {
+    const p = f?.properties ?? {};
+    const mag = Number(p.mag);
+    const link = p.url ?? '';
+    if (!Number.isFinite(mag) || !link || mag < (source.min_mag ?? 0)) continue;
+    const place = String(p.place ?? '').trim();
+    const published = Number.isFinite(Number(p.time)) ? new Date(Number(p.time)).toISOString() : null;
+    const depth = Array.isArray(f.geometry?.coordinates) ? Number(f.geometry.coordinates[2]) : NaN;
+    const summary = [
+      `Earthquake magnitude ${mag.toFixed(1)}${place ? `, ${place}` : ''}.`,
+      Number.isFinite(depth) && `Depth ${Math.round(depth)} km.`,
+      p.tsunami === 1 && 'Tsunami warning issued.',
+      p.alert && `USGS alert level: ${p.alert}.`,
+    ].filter(Boolean).join(' ');
+    out.push({ id: `${source.id}:${f.id ?? link}`, title: p.title ? clean(p.title) : `M ${mag.toFixed(1)} - ${place}`, summary, link, source: source.id, published, image: null });
+  }
+  return out;
+}
+
+/** Разбор RSS 2.0 / Atom (или GeoJSON, если лента отдаёт JSON) в нормализованные записи. */
 export function parseFeed(xml, source) {
+  if (source.format === 'geojson' || xml.trimStart().startsWith('{')) return parseGeoJson(xml, source);
   const isAtom = /<feed[\s>]/i.test(xml) && !/<rss[\s>]/i.test(xml);
   const re = isAtom ? /<entry[\s>][\s\S]*?<\/entry>/gi : /<item[\s>][\s\S]*?<\/item>/gi;
   const out = [];
