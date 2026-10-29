@@ -28,12 +28,13 @@ export function formatPost(chat, post) {
  * Ворота gate.js обязательны: не прошёл — ничего не отправляется.
  * Возвращает { ok:true, message_id } | { ok:false, reason:'gate'|'config'|'error', reasons|error, retryable }.
  */
-export async function publish({ chat, post, send, retries = DEFAULT_CONFIG.retries, retryDelayMs = DEFAULT_CONFIG.retry_delay_ms, sleep = wait }) {
+export async function publish({ chat, post, send, prefix = '', retries = DEFAULT_CONFIG.retries, retryDelayMs = DEFAULT_CONFIG.retry_delay_ms, sleep = wait }) {
   if (!chat) return { ok: false, reason: 'config', error: 'не задан news_channel_chat', retryable: false };
   if (typeof send !== 'function') return { ok: false, reason: 'config', error: 'не задан send', retryable: false };
-  const g = gate({ body: String(post?.text ?? '') }, { maxLength: MAX_LENGTH });
+  const g = gate({ body: String(post?.text ?? '') }, { maxLength: MAX_LENGTH - prefix.length });
   if (!g.ok) return { ok: false, reason: 'gate', reasons: g.reasons, retryable: false };
-  const req = formatPost(chat, post);
+  // prefix — служебная шапка («⚡️ СРОЧНО»): ворота проверяют текст без неё, длина — вместе с ней
+  const req = formatPost(chat, { ...post, text: prefix + String(post?.text ?? '').trim() });
   let last;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {

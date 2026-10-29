@@ -91,6 +91,17 @@ CREATE TABLE IF NOT EXISTS drafts (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS broadcasts (
+  kind TEXT NOT NULL,
+  key TEXT NOT NULL,
+  day TEXT,
+  draft_id TEXT,
+  event_ids TEXT NOT NULL DEFAULT '[]',
+  message_id TEXT,
+  published_at TEXT,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (kind, key)
+);
 `;
 
 const minIso = (a, b) => (!a ? b : !b ? a : a <= b ? a : b);
@@ -329,7 +340,28 @@ export function openStore(path = DEFAULT_DB) {
         .run('опубликован', String(messageId), now, now, id, 'одобрен').changes > 0;
     },
     /** Времена публикаций не раньше since (ISO), по возрастанию. */
-    publishedTimes: (since = '') => db.prepare('SELECT published_at FROM drafts WHERE published_at IS NOT NULL AND published_at >= ? ORDER BY published_at').all(since).map((r) => r.published_at),
+    // «Срочно» идёт вне часовой очереди и в её лимит не входит
+    publishedTimes: (since = '') => db.prepare("SELECT published_at FROM drafts WHERE published_at IS NOT NULL AND published_at >= ? AND id NOT IN (SELECT draft_id FROM broadcasts WHERE kind = 'срочно' AND draft_id IS NOT NULL) ORDER BY published_at").all(since).map((r) => r.published_at),
+    /**
+     * Сетка дня: дайджесты ('утро', 'вечер'; key = день по МСК) и «срочно» (key = id черновика).
+     * Бронь строки — до отправки: повторный проход не пошлёт то же дважды. true — бронь наша.
+     */
+    claimBroadcast(kind, key, { day = null, draftId = null, eventIds = [] } = {}, now = new Date().toISOString()) {
+      return db.prepare('INSERT OR IGNORE INTO broadcasts (kind, key, day, draft_id, event_ids, created_at) VALUES (?,?,?,?,?,?)')
+        .run(kind, key, day, draftId, JSON.stringify(eventIds), now).changes > 0;
+    },
+    finishBroadcast(kind, key, messageId, now = new Date().toISOString()) {
+      db.prepare('UPDATE broadcasts SET message_id=?, published_at=? WHERE kind=? AND key=?').run(String(messageId), now, kind, key);
+    },
+    releaseBroadcast(kind, key) {
+      db.prepare('DELETE FROM broadcasts WHERE kind=? AND key=? AND published_at IS NULL').run(kind, key);
+    },
+    hasBroadcast: (kind, key) => !!db.prepare('SELECT 1 FROM broadcasts WHERE kind=? AND key=?').get(kind, key),
+    /** Выпущенные (с published_at) записи сетки дня, по возрастанию времени. */
+    broadcasts({ kind, since = '', day } = {}) {
+      const rows = db.prepare('SELECT * FROM broadcasts WHERE published_at IS NOT NULL AND published_at >= ? ORDER BY published_at').all(since);
+      return rows.filter((r) => (!kind || r.kind === kind) && (!day || r.day === day)).map((r) => ({ ...r, event_ids: JSON.parse(r.event_ids) }));
+    },
     close: () => db.close(),
   };
 }

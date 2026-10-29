@@ -15,6 +15,12 @@
     "Громкие происшествия": ["теракт", "взрыв", "похищен", "беспорядк", "захват", "стрельб", "attack", "explosion", "hostage", "riot", "shooting", "bomb", "ормуз", "hormuz", "пролив", "танкер", "изнасилов", "педофил", "маньяк"],
     "Резкие движения рынков": ["обвал", "биржа", "биржи", "нефть", "нефти", "биткоин", "рубл", "stocks", "oil price", "bitcoin", "markets", "currency"]
   },
+  "daily": {
+    "_comment": "сетка дня тестового канала; время по МСК (UTC+3), правится без кода",
+    "tz_hours": 3, "morning": "08:00", "evening": "21:00", "grace_minutes": 120,
+    "morning_items": 7, "evening_items": 5, "min_items": 3, "per_group": 2, "morning_window_hours": 14,
+    "breaking": { "min_sources": 3, "gap_minutes": 30, "per_day": 6, "max_age_minutes": 180 }
+  },
   "owner_feed_min": 40,
   "owner_feed_top_per_day": 7,
   "owner_feed_tz_hours": 7,
