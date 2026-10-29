@@ -146,7 +146,7 @@ export function openStore(path = DEFAULT_DB) {
         : [];
       if (!found.length && db.prepare('SELECT 1 FROM events WHERE id = ?').get(ev.id)) found.push(ev.id);
       const id = found[0] ?? ev.id;
-      db.exec('BEGIN');
+      db.exec('BEGIN IMMEDIATE');
       try {
         const prev = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
         for (const other of found.slice(1)) { // несколько старых записей оказались одним событием
@@ -194,7 +194,7 @@ export function openStore(path = DEFAULT_DB) {
     setBreakingFlags(breakingIds, scopeIds) {
       const up = db.prepare('UPDATE events SET breaking=? WHERE id=?');
       const on = new Set(breakingIds);
-      db.exec('BEGIN');
+      db.exec('BEGIN IMMEDIATE');
       try {
         for (const id of scopeIds) up.run(on.has(id) ? 1 : 0, id);
         db.exec('COMMIT');
@@ -207,7 +207,7 @@ export function openStore(path = DEFAULT_DB) {
     setTopOfDay(topIds, scopeIds) {
       const up = db.prepare('UPDATE events SET top_of_day=? WHERE id=?');
       const top = new Set(topIds);
-      db.exec('BEGIN');
+      db.exec('BEGIN IMMEDIATE');
       try {
         for (const id of scopeIds) up.run(top.has(id) ? 1 : 0, id);
         db.exec('COMMIT');
@@ -220,7 +220,7 @@ export function openStore(path = DEFAULT_DB) {
     addItems(items, { now = new Date().toISOString(), baseline = false } = {}) {
       const ins = db.prepare('INSERT OR IGNORE INTO items (id, source, title, summary, link, published, first_seen, baseline, image) VALUES (?,?,?,?,?,?,?,?,?)');
       let added = 0;
-      db.exec('BEGIN');
+      db.exec('BEGIN IMMEDIATE');
       try {
         for (const i of items) added += Number(ins.run(i.id, i.source, i.title, i.summary ?? null, i.link, i.published ?? null, now, baseline ? 1 : 0, i.image ?? null).changes);
         db.exec('COMMIT');
@@ -283,7 +283,7 @@ export function openStore(path = DEFAULT_DB) {
       if (!d) throw new Error(`нет черновика ${id}`);
       if (d.status !== 'ждёт одобрения') throw new Error(`черновик уже не ждёт одобрения (${d.status})`);
       let detail = {};
-      db.exec('BEGIN');
+      db.exec('BEGIN IMMEDIATE');
       try {
         if (action === 'одобрил') {
           if (!d.gate_ok) throw new Error('черновик не прошёл ворота кодом');
