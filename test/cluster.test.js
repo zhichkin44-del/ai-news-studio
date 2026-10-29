@@ -91,3 +91,29 @@ test('ключи: числа и имена весят больше, оконча
   assert.equal(langOf('Выборы в Бразилии'), 'ru');
   assert.equal(langOf('Elections in Brazil'), 'en');
 });
+
+test('индекс кандидатов даёт те же кластеры, что полный перебор пар; кэш по id не путает записи', () => {
+  let seed = 11;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const vocab = Array.from({ length: 40 }, (_, i) => `слово${'абвгдежз'[i % 8]}${'ийклмноп'[Math.floor(i / 8)]}ка`);
+  const items = Array.from({ length: 300 }, (_, i) => ({
+    id: i + 1, source: `s${i % 7}`, link: `l${i}`, summary: '', published: '2026-10-28T10:00:00Z',
+    title: Array.from({ length: 4 + Math.floor(rnd() * 3) }, () => vocab[Math.floor(rnd() ** 2 * vocab.length)]).join(' '),
+  }));
+  const ks = items.map((i) => keys(i.title));
+  const parent = items.map((_, i) => i);
+  const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+  for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) if (weightedSimilarity(ks[i], ks[j]) >= 0.4) parent[find(j)] = find(i);
+  const expected = new Map();
+  items.forEach((it, i) => { const r = find(i); expected.set(r, [...(expected.get(r) ?? []), it.id]); });
+  const sig = (groups) => groups.map((g) => [...g].sort((a, b) => a - b).join(',')).sort().join('|');
+  const got = cluster(items).map((c) => c.items.map((i) => i.id));
+  assert.equal(sig(got), sig([...expected.values()]));
+  assert.equal(sig(cluster(items).map((c) => c.items.map((i) => i.id))), sig(got)); // повторный проход с тёплым кэшем
+  // тот же id с другим заголовком — разбор пересчитывается
+  const a = { id: 9001, source: 'x', link: 'a1', summary: '', published: '2026-10-28T10:00:00Z', title: 'совсем другое про лес' };
+  const b = { id: 9002, source: 'y', link: 'a2', summary: '', published: '2026-10-28T10:00:00Z', title: 'совсем другое про лес' };
+  assert.equal(cluster([a, b]).length, 1);
+  assert.equal(cluster([a, { ...b, title: 'иная тема про море зимой' }]).length, 2);
+  assert.equal(cluster([{ ...a, title: 'иная тема про море зимой' }, { ...b, title: 'иная тема про море зимой' }]).length, 1);
+});

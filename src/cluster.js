@@ -112,12 +112,27 @@ const commonIds = () => (dict(), COMMON);
 const plain = (s) => norm(s).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const stripHtml = (s) => (s ?? '').replace(/<[^>]*>/g, ' ');
 
-function dictHits(text) {
+const HITS_CAP = 50000;
+const hitsCache = new Map(); // слово → словарные якоря (имена собственные повторяются тысячами раз)
+
+function dictHitsRaw(text) {
   const low = plain(text);
   const out = new Map();
   for (const e of dict()) if ((e.low && e.low.test(low)) || e.cased.some((r) => r.test(text))) out.set(e.id, e.kind);
   return out;
 }
+
+function dictHitsWord(w) {
+  let h = hitsCache.get(w);
+  if (!h) {
+    if (hitsCache.size >= HITS_CAP) hitsCache.clear();
+    h = dictHitsRaw(w);
+    hitsCache.set(w, h);
+  }
+  return h;
+}
+
+const dictHits = dictHitsRaw;
 
 /**
  * Якоря текста: словарные (страны/города/имена/организации/типы событий из anchors.json),
@@ -130,7 +145,7 @@ export function anchors(text) {
     if (!/^(19|20)\d\d$/.test(m[0])) out.set(`#${m[0]}`, 'num');
   }
   for (const w of capitalized(text)) {
-    if (dictHits(w).size) continue;
+    if (dictHitsWord(w).size) continue;
     const sk = skeleton(w);
     if (sk.length >= 3) out.set(`~${sk}`, 'name');
   }
@@ -182,9 +197,8 @@ export function anchorMatch(a, b, weight = () => 1) {
  * профиль группы пересчитывается после каждого раунда. Работает для любых пар групп: и ru↔en,
  * и пересказы в одном языке другими словами.
  */
-function mergeByAnchors(items, find, union, groups) {
+function mergeByAnchors(items, info, find, union, groups) {
   const pub = (it) => groups[it.source] ?? it.source;
-  const info = items.map((item) => (item.title ? { item, ...itemAnchors(item) } : null));
   const common = new Set(commonIds());
   const weight = (k) => (common.has(k) ? 0.5 : 1);
   for (let round = 0; round < 10; round++) {
@@ -194,14 +208,31 @@ function mergeByAnchors(items, find, union, groups) {
     const prof = new Map(roots.map((r) => [r, profile(members.get(r))]));
     const pubs = new Map(roots.map((r) => [r, new Set(members.get(r).map((m) => pub(m.item)))]));
     const sub = (x, y) => [...x].every((p) => y.has(p));
+    // инвертированный индекс: якорь → группы. Склейка требует ≥ 2 общих «весомых» якорей
+    // (не общих и не типов событий), поэтому кандидаты — только пары, делящие два таких якоря
+    const index = new Map();
+    roots.forEach((r, ri) => {
+      for (const [k, kind] of prof.get(r).all) {
+        if (kind === 'generic' || common.has(k)) continue;
+        if (!index.has(k)) index.set(k, []);
+        index.get(k).push(ri);
+      }
+    });
     const pairs = [];
-    for (let a = 0; a < roots.length; a++)
-      for (let b = a + 1; b < roots.length; b++) {
+    for (let a = 0; a < roots.length; a++) {
+      const cnt = new Map();
+      for (const [k, kind] of prof.get(roots[a]).all) {
+        if (kind === 'generic' || common.has(k)) continue;
+        for (const b of index.get(k)) if (b > a) cnt.set(b, (cnt.get(b) ?? 0) + 1);
+      }
+      const cands = [...cnt].filter(([, n]) => n >= 2).map(([b]) => b).sort((x, y) => x - y);
+      for (const b of cands) {
         // события одной и той же ленты (или одного издателя) друг друга не подтверждают — не склеиваем
         if (sub(pubs.get(roots[a]), pubs.get(roots[b])) && sub(pubs.get(roots[b]), pubs.get(roots[a]))) continue;
         const w = anchorMatch(prof.get(roots[a]), prof.get(roots[b]), weight);
         if (w) pairs.push([w, roots[a], roots[b]]);
       }
+    }
     pairs.sort((x, y) => y[0] - x[0]);
     const used = new Set();
     let merged = 0;
@@ -215,6 +246,26 @@ function mergeByAnchors(items, find, union, groups) {
   }
 }
 
+const PREP_CAP = 100000;
+const prepCache = new Map(); // id записи → разобранные токены/якоря; живёт, пока живёт процесс (отбор и метрики делят его)
+
+/** Разбор записи (язык, ключи, якоря) — один раз на запись; кэш по id сверяется с заголовком и описанием. */
+function prep(it) {
+  const cached = it.id != null ? prepCache.get(it.id) : null;
+  if (cached && cached.title === it.title && cached.summary === it.summary) return cached;
+  let ia;
+  const p = {
+    title: it.title, summary: it.summary,
+    lang: langOf(it.title), keys: keys(it.title), digest: DIGEST.test(it.title),
+    anchors: () => (ia ??= itemAnchors(it)),
+  };
+  if (it.id != null) {
+    if (prepCache.size >= PREP_CAP) prepCache.clear();
+    prepCache.set(it.id, p);
+  }
+  return p;
+}
+
 /**
  * Склейка в кластеры в два этапа.
  * (а) внутри языка — взвешенное сходство нормализованных ключей ≥ threshold; одинаковая ссылка — то же событие;
@@ -222,16 +273,38 @@ function mergeByAnchors(items, find, union, groups) {
  * groups: лента → издатель (BBC World и BBC Русская служба = одно агентство): повторы издателя не независимы.
  */
 export function cluster(items, threshold = 0.4, groups = {}) {
-  const lang = items.map((i) => langOf(i.title));
-  const ks = items.map((i) => keys(i.title));
-  const digest = items.map((i) => DIGEST.test(i.title)); // дайджесты «Главные новости дня» — не одно событие
+  const pre = items.map(prep);
+  const lang = pre.map((p) => p.lang);
+  const ks = pre.map((p) => p.keys);
+  const digest = pre.map((p) => p.digest); // дайджесты «Главные новости дня» — не одно событие
   const parent = items.map((_, i) => i);
-  const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+  const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
   const union = (i, j) => { parent[find(j)] = find(i); };
-  for (let i = 0; i < items.length; i++)
-    for (let j = i + 1; j < items.length; j++)
+  // этап (а): кандидаты — записи с общим ключом (без общего ключа сходство 0 < threshold); порядок слияний прежний
+  const byLink = new Map(), post = new Map();
+  const sums = ks.map((k) => { let s = 0; for (const w of k.values()) s += w; return s; });
+  const push = (m, k, i) => { const l = m.get(k); if (l) l.push(i); else m.set(k, [i]); };
+  items.forEach((it, i) => {
+    push(byLink, it.link, i);
+    if (!digest[i]) for (const k of ks[i].keys()) push(post, k, i);
+  });
+  for (let i = 0; i < items.length; i++) {
+    const cand = new Set(byLink.get(items[i].link));
+    if (!digest[i]) {
+      // префиксный фильтр: сходство ≥ threshold даёт общий вес ≥ threshold·вес(i), а самые частые ключи
+      // весят не больше 2 каждый — их можно не обходить, если вместе они не набирают этого веса (результат точный)
+      const byFreq = [...ks[i].keys()].sort((a, b) => post.get(b).length - post.get(a).length);
+      let skip = 0;
+      while (skip < byFreq.length && 2 * (skip + 1) < threshold * sums[i]) skip++;
+      for (let n = skip; n < byFreq.length; n++) for (const j of post.get(byFreq[n])) cand.add(j);
+    }
+    for (const j of [...cand].sort((a, b) => a - b)) {
+      if (j <= i || find(i) === find(j)) continue; // уже в одном кластере: union ничего не изменит
       if (items[i].link === items[j].link || (!digest[i] && !digest[j] && lang[i] === lang[j] && weightedSimilarity(ks[i], ks[j]) >= threshold)) union(i, j);
-  mergeByAnchors(items.map((it, i) => (digest[i] ? { ...it, title: '' } : it)), find, union, groups);
+    }
+  }
+  const info = pre.map((p, i) => (digest[i] || !items[i].title ? null : { item: items[i], ...p.anchors() }));
+  mergeByAnchors(items, info, find, union, groups);
   const byRoot = new Map();
   items.forEach((it, i) => {
     const r = find(i);
