@@ -353,6 +353,8 @@ export function openStore(path = DEFAULT_DB) {
      * Сетка дня: дайджесты ('утро', 'вечер'; key = день по МСК) и «срочно» (key = id черновика).
      * Бронь строки — до отправки: повторный проход не пошлёт то же дважды. true — бронь наша.
      */
+    /** Снять бронь, если сообщение не ушло (чтобы следующий проход попробовал снова). */
+    releaseBroadcast: (kind, key) => db.prepare('DELETE FROM broadcasts WHERE kind = ? AND key = ?').run(kind, key).changes > 0,
     claimBroadcast(kind, key, { day = null, draftId = null, eventIds = [] } = {}, now = new Date().toISOString()) {
       return db.prepare('INSERT OR IGNORE INTO broadcasts (kind, key, day, draft_id, event_ids, created_at) VALUES (?,?,?,?,?,?)')
         .run(kind, key, day, draftId, JSON.stringify(eventIds), now).changes > 0;

@@ -69,14 +69,21 @@ export async function runQueue({ store, chat, send, config = {}, now = new Date(
     if (times.length >= cfg.max_per_hour) { out.stopped = 'лимит в час'; break; }
     const lastAll = store.publishedTimes().at(-1);
     if (lastAll && nowMs - Date.parse(lastAll) < cfg.min_gap_minutes * 60_000) { out.stopped = 'пауза'; break; }
+    // Бронь ДО отправки: если отметка «опубликован» не запишется (база занята), тот же пост не уйдёт второй раз (29.10: один пост шесть раз)
+    if (!store.claimBroadcast('пост', d.id, { draftId: d.id }, t().toISOString())) { out.skipped.push({ id: d.id, reason: 'уже отправлялся' }); continue; }
     const img = store.getImage(d.id);
     const r = await publish({ chat, post: { text: d.text, image: img?.file }, send, retries: cfg.retries, retryDelayMs: cfg.retry_delay_ms, sleep });
     if (r.ok) {
-      store.markPublished(d.id, r.message_id, t().toISOString());
+      for (let i = 0; i < 6; i++) {
+        try { store.markPublished(d.id, r.message_id, t().toISOString()); break; } catch (e) { if (i === 5) out.skipped.push({ id: d.id, reason: `отправлен, отметка не записалась: ${e.message}` }); else await sleep(1000 * (i + 1)); }
+      }
       out.published.push({ id: d.id, message_id: r.message_id });
-    } else if (r.reason === 'config') { out.stopped = r.error; break; }
-    else if (r.retryable) { out.skipped.push({ id: d.id, reason: r.error }); out.stopped = 'сеть'; break; }
-    else out.skipped.push({ id: d.id, reason: r.reasons?.join('; ') ?? r.error });
+    } else {
+      store.releaseBroadcast('пост', d.id); // не ушло — следующий проход попробует снова
+      if (r.reason === 'config') { out.stopped = r.error; break; }
+      if (r.retryable) { out.skipped.push({ id: d.id, reason: r.error }); out.stopped = 'сеть'; break; }
+      out.skipped.push({ id: d.id, reason: r.reasons?.join('; ') ?? r.error });
+    }
   }
   return out;
 }

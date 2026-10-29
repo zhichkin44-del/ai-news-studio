@@ -162,3 +162,27 @@ test('картинка из таблицы images уходит sendPhoto; чуж
   await runQueue({ store: s, chat: '@ch', send, now: T0, sleep: noSleep });
   assert.equal(calls[0].method, 'sendPhoto');
 });
+
+test('дубли: если отметка «опубликован» не записалась, пост не уходит второй раз (29.10: один пост шесть раз)', async () => {
+  const s = fixture(1);
+  const real = s.markPublished;
+  s.markPublished = () => { throw new Error('database is locked'); };
+  const { send, calls } = okSend();
+  const first = await runQueue({ store: s, chat: '@ch', send, now: at(0), sleep: noSleep });
+  assert.equal(calls.length, 1);
+  assert.ok(first.skipped.some((x) => /отметка не записалась/.test(x.reason)));
+  s.markPublished = real;
+  const again = await runQueue({ store: s, chat: '@ch', send, now: at(120), sleep: noSleep });
+  assert.equal(calls.length, 1, 'второй раз не отправлен');
+  assert.ok(again.skipped.some((x) => x.reason === 'уже отправлялся'));
+});
+
+test('дубли: не ушло по сети — бронь снимается, следующий проход пробует снова', async () => {
+  const s = fixture(1);
+  let n = 0;
+  const send = async () => { n++; if (n === 1) throw new Error('сеть'); return { message_id: 7 }; };
+  const a = await runQueue({ store: s, chat: '@ch', send, now: at(0), sleep: noSleep, config: { retries: 0 } });
+  assert.equal(a.stopped, 'сеть');
+  const b = await runQueue({ store: s, chat: '@ch', send, now: at(120), sleep: noSleep, config: { retries: 0 } });
+  assert.equal(b.published.length, 1);
+});
