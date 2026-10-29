@@ -111,6 +111,10 @@ export function openStore(path = DEFAULT_DB) {
   if (!cols.includes('section')) db.exec('ALTER TABLE events ADD COLUMN section TEXT');
   if (!db.prepare('PRAGMA table_info(items)').all().some((c) => c.name === 'image')) db.exec('ALTER TABLE items ADD COLUMN image TEXT');
 
+  const dcols = db.prepare('PRAGMA table_info(drafts)').all().map((c) => c.name);
+  if (!dcols.includes('message_id')) db.exec('ALTER TABLE drafts ADD COLUMN message_id TEXT');
+  if (!dcols.includes('published_at')) db.exec('ALTER TABLE drafts ADD COLUMN published_at TEXT');
+
   const row = (r) => r && { ...r, reasons: JSON.parse(r.reasons), needs_owner: !!r.needs_owner };
   const withSources = (r) =>
     r && { ...row(r), sources: db.prepare('SELECT source, name, link, published FROM event_sources WHERE event_id = ? ORDER BY published, link').all(r.id) };
@@ -317,6 +321,13 @@ export function openStore(path = DEFAULT_DB) {
       db.prepare('INSERT OR IGNORE INTO images (draft_id, event_id, file, sha256, url, source, license, author, width, height, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
         .run(r.draftId, r.eventId ?? null, r.file, r.sha256, r.url, r.source, r.license ?? null, r.author ?? null, r.width ?? null, r.height ?? null, now);
     },
+    /** Отметить публикацию: только из «одобрен», один раз. true — отметили, false — уже опубликован или не одобрен. */
+    markPublished(id, messageId, now = new Date().toISOString()) {
+      return db.prepare('UPDATE drafts SET status=?, message_id=?, published_at=?, updated_at=? WHERE id=? AND status=?')
+        .run('опубликован', String(messageId), now, now, id, 'одобрен').changes > 0;
+    },
+    /** Времена публикаций не раньше since (ISO), по возрастанию. */
+    publishedTimes: (since = '') => db.prepare('SELECT published_at FROM drafts WHERE published_at IS NOT NULL AND published_at >= ? ORDER BY published_at').all(since).map((r) => r.published_at),
     close: () => db.close(),
   };
 }
