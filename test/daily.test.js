@@ -52,7 +52,7 @@ test('утренний дайджест: до 7 пунктов, без ссыл�
   assert.equal(calls.length, 1);
   const text = calls[0].params.text;
   assert.match(text, /^Главное за ночь\n\n1\. /);
-  assert.equal(text.split('\n').filter((l) => /^\d+\. /.test(l)).length, 7);
+  assert.equal(text.split('\n').filter((l) => /^(<blockquote expandable>)?\d+\. /.test(l)).length, 7);
   assert.ok(text.length <= 1024);
   assert.doesNotMatch(text, /https?:|example\.com/);
   const again = await runDaily({ store: s, chat: '@ch', send, now: utc('2026-10-29T05:30:00Z'), sleep: noSleep });
@@ -96,7 +96,7 @@ test('вечерний «Итог дня»: 5 пунктов и строка «�
   assert.equal(e.published, true);
   const text = calls[0].params.text;
   assert.match(text, /^Итог дня\n\n/);
-  assert.equal(text.split('\n').filter((l) => /^\d+\. /.test(l)).length, 5);
+  assert.equal(text.split('\n').filter((l) => /^(<blockquote expandable>)?\d+\. /.test(l)).length, 5);
   assert.match(text, /\n\nЧто следить завтра: /);
   assert.ok(text.length <= 1024);
 });

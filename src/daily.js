@@ -2,6 +2,7 @@ import { DEFAULT_CONFIG as SCORE_CONFIG } from './score.js';
 import { gate, MAX_LENGTH } from './gate.js';
 import { publish } from './publish.js';
 import { pickDiverse, peakOf, sectionOf } from './diversity.js';
+import { escapeText, visibleText } from './markup.js';
 
 const MIN = 60_000;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -35,7 +36,12 @@ export function dueDigest(nowMs, cfg = dailyConfig()) {
 
 /** Первая фраза черновика (вторая — если первая короткая); без эмодзи-шапок, переносов и кавычек-ёлочек по краям. */
 export function leadOf(text, max = 200) {
-  const flat = String(text ?? '').replace(/[\u{1F300}-\u{1FAFF}☀-➿️]/gu, '').replace(/\s+/g, ' ').trim();
+  const src = String(text ?? '');
+  // размеченный пост: пункт дайджеста = жирный заголовок (слой 2), без деталей и без разметки
+  const bold = src.match(/^\s*[^\p{L}\p{N}<]{0,6}<b>([\s\S]*?)<\/b>/iu);
+  const head = bold ? visibleText(bold[1]).replace(/\s+/g, ' ').trim() : '';
+  if (head.length >= 20) return head.length > max ? `${head.slice(0, max).replace(/\s+\S*$/, '')}…` : head;
+  const flat = visibleText(src).replace(/[\u{1F300}-\u{1FAFF}☀-➿️]/gu, '').replace(/\s+/g, ' ').trim();
   const sentences = flat.match(/.+?[.!?…]+(?=\s|$)|.+$/gu)?.map((s) => s.trim()).filter(Boolean) ?? [];
   let out = sentences[0] ?? '';
   if (out.length < 70 && sentences[1] && `${out} ${sentences[1]}`.length <= max) out = `${out} ${sentences[1]}`;
@@ -58,18 +64,42 @@ function pickItems(store, { from, to, limit, perGroup, skip = new Set() }) {
   return pickDiverse(cands, { limit, perGroup, minOutside: 0, minScore: 0, scoreOf: peakOf });
 }
 
-/** Текст дайджеста: пронумерованные пункты, в ≤1024 знака (лишние пункты с конца отбрасываются). */
+const OPEN_ITEMS = 3; // первые пункты видны сразу, с 4-го — в сворачиваемой цитате
+
+/** Пункт дайджеста с жирными ключевыми словами: часть до двоеточия/тире, иначе первые три слова. */
+export function boldLead(line) {
+  const s = String(line ?? '').trim();
+  const cut = s.search(/:\s|\s[—–-]\s/);
+  let key;
+  let rest;
+  if (cut >= 3 && cut <= 60) { key = s.slice(0, cut + (s[cut] === ':' ? 1 : 0)); rest = s.slice(key.length).replace(/^\s+/, ''); }
+  else {
+    const w = s.split(/\s+/);
+    if (w.length <= 3) return `<b>${escapeText(s)}</b>`;
+    key = w.slice(0, 3).join(' ');
+    rest = w.slice(3).join(' ');
+  }
+  return `<b>${escapeText(key)}</b> ${escapeText(rest)}`.trim();
+}
+
+/**
+ * Текст дайджеста: пронумерованные пункты с жирными ключевыми словами, в ≤1024 видимых знака
+ * (лишние пункты с конца отбрасываются). Пункты с 4-го — в <blockquote expandable>.
+ */
 export function buildDigest(kind, items, { minItems = 3 } = {}) {
   const head = kind === 'утро' ? 'Главное за ночь' : 'Итог дня';
   const tail = (list) => {
     if (kind !== 'вечер') return '';
     const topics = [...new Set(list.map(sectionOf))].slice(0, 3).join(', ');
-    return `\n\nЧто следить завтра: развитие событий по темам — ${topics}.`;
+    return `\n\nЧто следить завтра: развитие событий по темам — ${escapeText(topics)}.`;
   };
   for (let n = items.length; n >= minItems; n--) {
     const list = items.slice(0, n);
-    const text = `${head}\n\n${list.map((e, i) => `${i + 1}. ${e.line}`).join('\n')}${tail(list)}`;
-    if (text.length <= MAX_LENGTH && gate({ body: text }).ok) return { text, items: list };
+    const row = (e, i) => `${i + 1}. ${boldLead(e.line)}`;
+    const open = list.slice(0, OPEN_ITEMS).map(row).join('\n');
+    const folded = list.slice(OPEN_ITEMS).map((e, i) => row(e, i + OPEN_ITEMS)).join('\n');
+    const text = `${head}\n\n${open}${folded ? `\n<blockquote expandable>${folded}</blockquote>` : ''}${tail(list)}`;
+    if (visibleText(text).length <= MAX_LENGTH && gate({ body: text }).ok) return { text, items: list };
   }
   return null;
 }

@@ -27,7 +27,7 @@ test('число: процент, сумма, жертвы, величина; г
 test('выбор макета: цифра или заголовок', () => {
   assert.equal(pickLayout('Взрыв: 5 погибших'), 'number');
   assert.equal(pickLayout('Президент выступил с речью'), 'headline');
-  assert.equal(cardModel({ text: 'Президент выступил\n\nПодробности позже.' }).caption, '');
+  assert.equal(cardModel({ text: 'Президент выступил\n\nПодробности позже.' }).caption, 'Подробности позже'); // без цифры — короткая строка главного
 });
 
 test('перенос по словам и сжатие кегля', () => {
@@ -63,7 +63,7 @@ test('метка категории', () => {
 test('ворота по тексту карточки: ссылки и издания не проходят', () => {
   assert.equal(gateCard(cardModel({ text: 'Заголовок\n\nПодпись.' })).ok, true);
   assert.equal(gateCard(cardModel({ text: 'Заголовок https://x.ru/a' })).ok, false);
-  assert.equal(gateCard(cardModel({ text: 'Заголовок: 5 погибших\n\nпо сообщению Reuters' })).ok, false);
+  assert.equal(gateCard(cardModel({ text: 'Заголовок про выборы\n\nпо сообщению Reuters' })).ok, false);
   const html = cardHtml(cardModel({ text: 'Рынок упал на 7%\n\nИндекс снизился.' }));
   assert.match(html, /1080px/);
   assert.match(html, /НИЧЕГО СЕБЕ/);

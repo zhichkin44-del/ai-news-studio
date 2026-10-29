@@ -1,4 +1,5 @@
 import { gate, MAX_LENGTH } from './gate.js';
+import { sanitizeHtml, visibleText } from './markup.js';
 
 /** Режим старта: публикуются только черновики, одобренные владельцем; автопубликации нет. */
 export const DEFAULT_CONFIG = { mode: 'только одобренные', max_per_hour: 3, min_gap_minutes: 20, retries: 2, retry_delay_ms: 2000 };
@@ -17,11 +18,17 @@ export function isRetryable(err) {
  * Запрос к Bot API по посту: { text, image? } → { method, params }.
  * Подпись/текст ≤1024 знаков, картинка — sendPhoto с подписью. Ссылок и названий лент в тексте нет (ворота).
  */
-export function formatPost(chat, post) {
-  const text = String(post?.text ?? '').trim();
-  if (post?.image) return { method: 'sendPhoto', params: { chat_id: chat, photo: post.image, caption: text } };
-  return { method: 'sendMessage', params: { chat_id: chat, text, disable_web_page_preview: true } };
+export function formatPost(chat, post, { plain = false } = {}) {
+  const raw = String(post?.text ?? '').trim();
+  // HTML-разметка поста (<b>, <i>, <blockquote [expandable]>) чистится; остальное экранируется. plain — запасной вариант без разметки
+  const text = plain ? visibleText(raw).trim() : sanitizeHtml(raw);
+  const mode = plain ? {} : { parse_mode: 'HTML' };
+  if (post?.image) return { method: 'sendPhoto', params: { chat_id: chat, photo: post.image, caption: text, ...mode } };
+  return { method: 'sendMessage', params: { chat_id: chat, text, ...mode, disable_web_page_preview: true } };
 }
+
+/** Bot API не смог разобрать разметку: 400 «can't parse entities». */
+export const isParseError = (err) => (err?.status ?? err?.error_code) === 400 && /parse entities|unsupported start tag|can't find end/i.test(String(err?.message ?? err?.description ?? ''));
 
 /**
  * Опубликовать один пост. send({ method, params }) → { message_id } (в бою — Bot API пульта).
@@ -34,16 +41,19 @@ export async function publish({ chat, post, send, prefix = '', retries = DEFAULT
   const g = gate({ body: String(post?.text ?? '') }, { maxLength: MAX_LENGTH - prefix.length });
   if (!g.ok) return { ok: false, reason: 'gate', reasons: g.reasons, retryable: false };
   // prefix — служебная шапка («⚡️ СРОЧНО»): ворота проверяют текст без неё, длина — вместе с ней
-  const req = formatPost(chat, { ...post, text: prefix + String(post?.text ?? '').trim() });
+  const full = { ...post, text: prefix + String(post?.text ?? '').trim() };
+  let req = formatPost(chat, full);
+  let plain = false;
   let last;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await send(req);
       const id = res?.message_id ?? res?.result?.message_id;
       if (id === undefined || id === null) throw Object.assign(new Error('в ответе нет message_id'), { status: 502 });
-      return { ok: true, message_id: id };
+      return { ok: true, message_id: id, ...(plain && { plain: true }) };
     } catch (e) {
       last = e;
+      if (!plain && isParseError(e)) { plain = true; req = formatPost(chat, full, { plain: true }); attempt--; continue; } // разметка не разобрана — шлём без неё, пост не теряем
       if (!isRetryable(e)) break;
       if (attempt < retries) await sleep(retryDelayMs * 2 ** attempt);
     }

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gate } from './gate.js';
+import { cardText } from './markup.js';
 import { DEFAULT_CONFIG } from './score.js';
 
 /**
@@ -40,13 +41,73 @@ const SCALE = { тыс: 'тыс.', млн: 'млн', млрд: 'млрд', тр�
 const scaleOf = (w) => SCALE[String(w ?? '').toLowerCase().replace('.', '')] ?? null;
 const UNITS = [[/^км/i, 'км'], [/^градус/i, 'градусов'], [/^баллов?/i, 'баллов'], [/^тонн/i, 'тонн'], [/^метр/i, 'метров']];
 
+// Бытовые единицы: формы «1 / 2–4 / 5+»; years — значения свыше 120 не считаем (это год, а не срок)
+const COUNT_UNITS = [
+  [/^лет$|^год(?:а|ов|у|ам)?$/i, ['год', 'года', 'лет'], true],
+  [/^час(?:а|ов|ам)?$/i, ['час', 'часа', 'часов']],
+  [/^минут(?:а|ы|у)?$/i, ['минута', 'минуты', 'минут']],
+  [/^(?:день|дня|дней|дням)$/i, ['день', 'дня', 'дней']],
+  [/^сут(?:ки|ок)$/i, ['сутки', 'суток', 'суток']],
+  [/^рейс(?:а|ов)?$/i, ['рейс', 'рейса', 'рейсов']],
+  [/^дом(?:а|ов|ам|ах)?$/i, ['дом', 'дома', 'домов']],
+  [/^школ(?:а|ы|у|ах)?$/i, ['школа', 'школы', 'школ']],
+  [/^стран(?:а|ы|у|ах)?$/i, ['страна', 'страны', 'стран']],
+  [/^квартир(?:а|ы|у|ах)?$/i, ['квартира', 'квартиры', 'квартир']],
+  [/^больниц(?:а|ы|у|ах)?$/i, ['больница', 'больницы', 'больниц']],
+  [/^семей$|^семь(?:я|и|ям)$/i, ['семья', 'семьи', 'семей']],
+  [/^человек(?:а)?$/i, ['человек', 'человека', 'человек']],
+];
+const COUNT_RE = /(\d+(?:[.,]\d+)?)\s?([\p{L}]+)/gu;
+const plural = (n, [one, few, many]) => {
+  const i = Math.abs(Math.trunc(n));
+  if (!Number.isInteger(n)) return few;
+  if (i % 10 === 1 && i % 100 !== 11) return one;
+  if (i % 10 >= 2 && i % 10 <= 4 && (i % 100 < 12 || i % 100 > 14)) return few;
+  return many;
+};
+
+/** Слово-число рядом с жертвами: «погибли двое», «трое раненых». */
+const WORD_NUM = {
+  один: 1, одного: 1, одна: 1, двое: 2, два: 2, две: 2, двух: 2, трое: 3, три: 3, трёх: 3, трех: 3, четверо: 4, четыре: 4, четырёх: 4, четырех: 4,
+  пятеро: 5, пять: 5, пяти: 5, шестеро: 6, шесть: 6, шести: 6, семеро: 7, семь: 7, семи: 7, восемь: 8, восьми: 8, девять: 9, девяти: 9, десять: 10, десяти: 10,
+};
+const WORD_NUM_RE = Object.keys(WORD_NUM).join('|');
+const CASUALTY = new Set(['погибших', 'жертв', 'раненых', 'пострадавших', 'заложников']); // главнее процентов и денег
+
+function victimFigures(t) {
+  const figures = [];
+  // «30 человек погибли», «80 раненых», «трое раненых»
+  const re1 = new RegExp(`(\\d{1,3}(?:[  ]\\d{3})*|\\d+|(?<![\\p{L}])(?:${WORD_NUM_RE}))\\s+(человек\\p{L}*\\s+)?(погиб\\p{L}*|жертв\\p{L}*|ранен\\p{L}*|пострадав\\p{L}*|заложник\\p{L}*|пассажир\\p{L}*|эвакуирован\\p{L}*)`, 'giu');
+  for (const x of t.matchAll(re1)) {
+    const label = victimLabel(x[3]);
+    const value = WORD_NUM[x[1].toLowerCase()] ?? num(x[1]);
+    if (label) figures.push({ value, label });
+  }
+  // «погибли 12», «погибли двое», «ранены пятеро»
+  const re2 = new RegExp(`(погиб\\p{L}*|ранен\\p{L}*|пострадал\\p{L}*)\\s+(?:более\\s+|около\\s+|не менее\\s+)?(\\d+|(?<![\\p{L}])(?:${WORD_NUM_RE}))(?![\\p{L}\\d])(?!\\s?(?:%|лет))`, 'giu');
+  for (const x of t.matchAll(re2)) {
+    const label = victimLabel(x[1]);
+    const value = WORD_NUM[x[2].toLowerCase()] ?? num(x[2]);
+    if (label) figures.push({ value, label });
+  }
+  return figures.filter((f, i) => figures.findIndex((g) => g.label === f.label) === i);
+}
+
+const victimsResult = (dedup) => {
+  const top = dedup.find((f) => f.label === 'погибших') ?? dedup.reduce((a, b) => (b.value > a.value ? b : a));
+  const other = dedup.find((f) => f !== top);
+  return { text: String(top.value), unit: top.label, kind: 'victims', value: top.value, second: other ? { value: other.value, label: other.label } : null };
+};
+
 /**
- * Заметная цифра в тексте поста, регулярками: процент, сумма, число жертв, величина с единицей.
- * → { text:'30', unit:'погибших', kind:'victims'|'percent'|'money'|'value', value, share?, second? } | null.
+ * Заметная цифра в тексте поста, регулярками: число жертв, процент, сумма, величина с единицей.
+ * Жертвы главнее процентов и денег. → { text:'30', unit:'погибших', kind:'victims'|'percent'|'money'|'value', value, share?, second? } | null.
  * Годы и даты цифрой не считаются.
  */
 export function extractNumber(text) {
   const t = String(text ?? '').replace(/ /g, ' ');
+  const dedup = victimFigures(t);
+  if (dedup.some((f) => CASUALTY.has(f.label))) return victimsResult(dedup);
   let m = t.match(/(\d+(?:[.,]\d+)?)\s?(%|процент\w*)/i);
   if (m) {
     const value = num(m[1]);
@@ -59,41 +120,36 @@ export function extractNumber(text) {
     const body = `${fmt(m[1])}${scale ? ` ${scale}` : ''}`;
     return { text: cur[1] === '$' || cur[1] === '€' ? `${cur[1]}${body}` : `${body} ${cur[1]}`, unit: cur[2], kind: 'money', value: num(m[1]) };
   }
-  // «30 человек погибли», «80 раненых», «погибли 12»
-  const figures = [];
-  for (const x of t.matchAll(/(\d{1,3}(?:[  ]\d{3})*|\d+)\s+(человек\p{L}*\s+)?(погиб\p{L}*|жертв\p{L}*|ранен\p{L}*|пострадав\p{L}*|заложник\p{L}*|пассажир\p{L}*|эвакуирован\p{L}*)/giu)) {
-    const label = victimLabel(x[3]);
-    if (label) figures.push({ value: num(x[1]), label });
-  }
-  for (const x of t.matchAll(/(погиб\p{L}*|ранен\p{L}*|пострадал\p{L}*)\s+(?:более\s+|около\s+|не менее\s+)?(\d+)\b(?!\s?(?:%|лет))/giu)) {
-    const label = victimLabel(x[1]);
-    if (label) figures.push({ value: num(x[2]), label });
-  }
-  const dedup = figures.filter((f, i) => figures.findIndex((g) => g.label === f.label) === i);
-  if (dedup.length) {
-    const top = dedup.find((f) => f.label === 'погибших') ?? dedup.reduce((a, b) => (b.value > a.value ? b : a));
-    const other = dedup.find((f) => f !== top);
-    return { text: String(top.value), unit: top.label, kind: 'victims', value: top.value, second: other ? { value: other.value, label: other.label } : null };
-  }
+  if (dedup.length) return victimsResult(dedup);
   m = t.match(/магнитуд\p{L}*\s+(\d+(?:[.,]\d+)?)/iu);
   if (m) return { text: fmt(m[1]), unit: 'магнитуда', kind: 'value', value: num(m[1]) };
   m = t.match(/(\d+(?:[.,]\d+)?)\s?(тыс\.?|млн|млрд|трлн)(?![\p{L}])\s?([\p{L}]+)?/iu);
   if (m) return { text: `${fmt(m[1])} ${scaleOf(m[2])}`, unit: m[3] ?? '', kind: 'value', value: num(m[1]) };
   m = t.match(/(\d+(?:[.,]\d+)?)\s?(км|градус\p{L}*|баллов?|тонн\p{L}*|метр\p{L}*)(?![\p{L}])/iu);
   if (m) return { text: fmt(m[1]), unit: UNITS.find(([re]) => re.test(m[2]))?.[1] ?? m[2], kind: 'value', value: num(m[1]) };
+  for (const x of t.matchAll(COUNT_RE)) {
+    const unit = COUNT_UNITS.find(([re]) => re.test(x[2]));
+    if (!unit) continue;
+    const value = num(x[1]);
+    if (unit[2] && value > 120) continue; // «2026 году» — дата, а не срок
+    return { text: fmt(x[1]), unit: plural(value, unit[1]), kind: 'value', value };
+  }
   return null;
 }
 
 /** Макет: «Цифра», если в посте есть заметная цифра, иначе «Заголовок». */
-export const pickLayout = (text) => (extractNumber(text) ? 'number' : 'headline');
+export const pickLayout = (text) => (extractNumber(cardText(text)) ? 'number' : 'headline');
 
 // ───────── текст ─────────
 
 const stripEmoji = (s) => String(s ?? '').replace(/[\p{Extended_Pictographic}️‍]/gu, '').replace(/[ \t]+/g, ' ').trim();
 
-/** Заголовок = первая строка поста (или первая фраза, если строка слишком длинная); подпись = первая фраза(ы) остального. */
+/**
+ * Заголовок = первая строка поста (или первая фраза, если строка слишком длинная); подпись = первая фраза(ы) остального.
+ * Разметка снимается, блок <blockquote> (слой 3, подробности) на карточку не попадает.
+ */
 export function splitPost(text) {
-  const clean = stripEmoji(text).replace(/\r/g, '');
+  const clean = stripEmoji(cardText(text)).replace(/\r/g, '');
   const [first = '', ...rest] = clean.split(/\n+/).map((l) => l.trim()).filter(Boolean);
   let head = first;
   let tail = rest.join(' ');
@@ -106,7 +162,47 @@ export function splitPost(text) {
   let caption = '';
   for (const s of sentences) { if ((caption + ' ' + s).trim().length > 220) break; caption = `${caption} ${s}`.trim(); }
   if (!caption && tail) caption = tail.slice(0, 220).trim();
-  return { headline: head, caption };
+  return { headline: head, caption, rest: tail };
+}
+
+const TAIL_WORDS = /^(?:в|во|на|у|к|ко|с|со|и|а|но|о|об|от|из|за|по|до|для|при|над|под|же|что|как|это|эти|обе|все|его|её|их|—|-)$/i;
+const DANGLING = /(?:ого|его|ой|ей|ых|их|ым|им|ую|юю|ая|яя|ое|ее|ые|ие)$/i; // повисшее прилагательное в конце обрезанного титра
+const TITLE_WORDS = 8;
+const TITLE_CHARS = 70;
+const wordsOf = (s) => s.split(/\s+/).filter(Boolean);
+
+/**
+ * Короткий титр карточки (6–8 слов, ≤70 знаков): до двоеточия, тире или первой запятой —
+ * чтобы не повторять цифру и весь текст поста. Короткий заголовок остаётся как есть.
+ */
+export function cardTitle(headline) {
+  let t = String(headline ?? '').replace(/\s+/g, ' ').trim();
+  for (const re of [/:\s/, /\s[—–-]\s/, /,\s/]) {
+    const at = t.search(re);
+    if (at > 0 && wordsOf(t.slice(0, at)).length >= 3) { t = t.slice(0, at); break; }
+  }
+  let w = wordsOf(t);
+  const cutByLimit = w.length > TITLE_WORDS || t.length > TITLE_CHARS;
+  if (w.length > TITLE_WORDS) w = w.slice(0, TITLE_WORDS);
+  while (w.length > 3 && w.join(' ').length > TITLE_CHARS) w.pop();
+  while (w.length > 3 && (TAIL_WORDS.test(w.at(-1)) || (cutByLimit && DANGLING.test(w.at(-1))))) w.pop();
+  return w.join(' ').replace(/[\s,;:—–-]+$/, '');
+}
+
+/** Короткая строка главного для безцифрового макета (≤90 знаков): суть строки «Что это значит/Что сейчас» или первая фраза после заголовка. */
+export function cardCaption(caption, title, max = 90) {
+  const flat = String(caption ?? '').replace(/•\s*/g, '').replace(/\s+/g, ' ').trim();
+  const sense = flat.match(/Что (?:это значит|сейчас)\s*:\s*(.+)$/i);
+  const src = sense ? sense[1] : flat;
+  const first = src.match(/[^.!?…]+[.!?…]*/)?.[0].trim() ?? '';
+  let out = first;
+  if (out.length > max) {
+    const w = out.slice(0, max).replace(/[\s,;:—-]*\S*$/, '').split(/\s+/);
+    while (w.length > 3 && TAIL_WORDS.test(w.at(-1).replace(/[,;:]+$/, ''))) w.pop();
+    out = `${w.join(' ').replace(/[\s,;:—-]+$/, '')}…`;
+  }
+  out = out.replace(/\.$/, '');
+  return out === title ? '' : out;
 }
 
 /** Перенос по словам по оценке ширины; слово длиннее строки режется. */
@@ -204,14 +300,17 @@ function bars(n) {
 /** Всё, что видно на карточке, без разметки — для ворот. */
 export function cardModel(post, { config = DEFAULT_CONFIG } = {}) {
   const text = String(post?.text ?? '');
-  const { headline, caption } = splitPost(text);
-  const n = extractNumber(text);
+  const { headline, rest } = splitPost(text);
+  const visible = cardText(text); // без слоя 3: цифра берётся только из видимой части
+  const n = extractNumber(visible);
   const label = labelFor(headline, post?.category); // ЧП и Деньги — только по заголовку, не по всему тексту
-  return { layout: n ? 'number' : 'headline', label, headline, caption: n ? caption : '', number: n, stamp: stamp(post?.time, config.daily?.tz_hours), brand: brandOf(config) };
+  const title = cardTitle(headline) || headline;
+  // с цифрой текст поста на карточке не дублируется; без цифры — одна короткая строка главного
+  return { layout: n ? 'number' : 'headline', label, headline, title, caption: n ? '' : cardCaption(rest, title), number: n, stamp: stamp(post?.time, config.daily?.tz_hours), brand: brandOf(config) };
 }
 
 export function cardTexts(model) {
-  return [model.label, model.headline, model.caption, model.number?.text, model.number?.unit, model.number?.second?.label, model.stamp, model.brand].filter(Boolean);
+  return [model.label, model.title ?? model.headline, model.caption, model.number?.text, model.number?.unit, model.number?.second?.label, model.stamp, model.brand].filter(Boolean);
 }
 
 /** Ворота по тексту карточки: ссылок, @имён, названий изданий и стоп-слов быть не должно. */
@@ -228,15 +327,16 @@ export function cardHtml(model) {
     const big = fitText(model.number.text, { width: W, maxLines: 1, maxSize: 270, minSize: 110, step: 6, lh: 1.05 });
     const bigH = Math.round(big.size * 1.05);
     const unit = model.number.unit ? `<div style="font-size:36px;font-weight:700;color:#b9bcc2;white-space:nowrap;overflow:hidden;margin-top:6px">${esc(model.number.unit)}</div>` : '';
-    const head = fitText(model.headline, { width: W, maxLines: 3, maxSize: 62, minSize: 38, height: 215 });
-    const cap = model.caption ? fitText(model.caption, { width: W, maxLines: 3, maxSize: 34, minSize: 24, height: 150, lh: 1.3 }) : null;
+    // титр короткий и крупный; мелкого текста-дубля поста под ним нет
+    const head = fitText(model.title ?? model.headline, { width: W, maxLines: 3, maxSize: 76, minSize: 42, height: 300 });
     body = `<div style="position:absolute;left:80px;top:230px;width:${W}px;height:${bigH}px;overflow:hidden">${lines(big, YELLOW, 900, 1.05)}</div>
 <div style="position:absolute;left:80px;top:${230 + bigH}px;width:${W}px;height:${unit ? 190 : 140}px;overflow:hidden">${unit}${bars(model.number)}</div>
-<div style="position:absolute;left:80px;top:790px;width:${W}px;height:215px;overflow:hidden">${lines(head, '#fff')}</div>
-<div style="position:absolute;left:80px;top:1020px;width:${W}px;height:150px;overflow:hidden">${cap ? lines(cap, '#c9ccd1', 500, 1.3) : ''}</div>`;
+<div style="position:absolute;left:80px;top:820px;width:${W}px;height:310px;overflow:hidden">${lines(head, '#fff', 800, 1.12)}</div>`;
   } else {
-    const head = fitText(model.headline, { width: W, maxLines: 8, maxSize: 112, minSize: 48, height: 760 });
-    body = `<div style="position:absolute;left:80px;top:330px;width:${W}px;height:850px;overflow:hidden">${lines(head, '#fff', 900)}<div style="margin-top:40px;height:14px;width:240px;background:${YELLOW}"></div></div>`;
+    // без цифры: крупный титр, жёлтый разделитель, короткая строка главного
+    const head = fitText(model.title ?? model.headline, { width: W, maxLines: 4, maxSize: 112, minSize: 52, height: 540 });
+    const cap = model.caption ? fitText(model.caption, { width: W, maxLines: 2, maxSize: 44, minSize: 30, height: 130, lh: 1.25 }) : null;
+    body = `<div style="position:absolute;left:80px;top:330px;width:${W}px;height:800px;overflow:hidden">${lines(head, '#fff', 900)}<div style="margin-top:40px;height:14px;width:240px;background:${YELLOW}"></div>${cap ? `<div style="margin-top:36px">${lines(cap, '#b9bcc2', 600, 1.25)}</div>` : ''}</div>`;
   }
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><style>html,body{margin:0;padding:0}body{width:${CARD_W}px;height:${CARD_H}px;background:#222428;font-family:'Segoe UI','Arial',sans-serif;position:relative;overflow:hidden}</style></head><body><div style="position:absolute;left:0;top:0;width:${CARD_W}px;height:22px;background:${YELLOW}"></div>${chip}${body}${foot}</body></html>`;
 }

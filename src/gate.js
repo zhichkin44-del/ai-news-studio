@@ -1,3 +1,6 @@
+import { visibleText } from './markup.js';
+
+/** Длина подписи под картинкой в Telegram — по видимому тексту (после разбора разметки). */
 export const MAX_LENGTH = 1024;
 
 /** Издания и ленты из sources.json (названия и узнаваемые части). Согласованность проверяет тест. */
@@ -47,11 +50,12 @@ const hasWord = (text, word) => {
  * post: { title, body }. Возвращает { ok, reasons }.
  */
 export function gate(post, { outlets = OUTLETS, stopWords = STOP_WORDS, maxLength = MAX_LENGTH } = {}) {
-  const text = `${post?.title ?? ''}\n${post?.body ?? ''}`.trim();
+  const raw = `${post?.title ?? ''}\n${post?.body ?? ''}`.trim();
+  const text = visibleText(raw).trim(); // разрешённые теги не считаются ни в длину, ни в стоп-слова
   const reasons = [];
   if (!text) reasons.push('пустой пост');
   if (text.length > maxLength) reasons.push(`длиннее ${maxLength} знаков (${text.length})`);
-  if (LINK_RES.some((re) => re.test(text))) reasons.push('ссылка или @юзернейм');
+  if (LINK_RES.some((re) => re.test(raw) || re.test(text))) reasons.push('ссылка или @юзернейм'); // и в сырой разметке: <a href> не пройдёт
   const outlet = outlets.find((o) => hasWord(text, o));
   if (outlet) reasons.push(`упоминание издания: ${outlet}`);
   const stop = stopWords.find((w) => hasWord(text, w));
