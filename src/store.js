@@ -101,6 +101,8 @@ export function openStore(path = DEFAULT_DB) {
   const db = new DatabaseSync(path);
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 5000'); // радар пишет в ту же базу
+  // WAL: пульт читает базу, пока отбор пишет; без журнала читатель ждал писателя до 30 с и пульт замирал (29.10)
+  if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   db.exec(SCHEMA);
   // миграция живой базы: категория события и «топ дня» (лента владельца)
   const cols = db.prepare('PRAGMA table_info(events)').all().map((c) => c.name);
