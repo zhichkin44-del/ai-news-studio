@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decode } from './collect.js';
 import { openStore } from './store.js';
+import { DEFAULT_CONFIG } from './score.js';
+import { renderCard, cardModeOf, brandOf } from './card.js';
 
 export const IMAGES_DIR = process.env.NEWS_IMAGES_DIR || 'data/images';
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -198,10 +200,23 @@ export function eventForPick(store, eventId) {
  * Подобрать и скачать картинку черновику. Повтор — no-op. Дубль по URL или sha256 содержимого
  * пропускается, берётся следующий кандидат. Возвращает строку images или null.
  */
-export async function attachImage(store, draft, { fetchImpl = fetch, dir = IMAGES_DIR, budgetMs = 45000 } = {}) {
+export async function attachImage(store, draft, { fetchImpl = fetch, dir = IMAGES_DIR, budgetMs = 45000, config = DEFAULT_CONFIG, render = renderCard } = {}) {
   const deadline = Date.now() + budgetMs;
   const have = store.getImage(draft.id);
   if (have) return have;
+  const mode = cardModeOf(config);
+  const card = async () => {
+    const r = await render({ text: draft.text, category: store.get(draft.event_id)?.category ?? null, time: draft.created_at }, { outFile: join(dir, `card-${draft.id}.png`), config });
+    store.addImage({ draftId: draft.id, eventId: draft.event_id, file: r.file, sha256: r.sha256, url: `card:${draft.id}`, source: 'card', license: 'own', author: brandOf(config), width: r.width, height: r.height });
+    return store.getImage(draft.id);
+  };
+  if (mode === 'always') return card();
+  const photo = await attachPhoto(store, draft, { fetchImpl, dir, deadline });
+  if (photo || mode === 'off') return photo;
+  return card();
+}
+
+async function attachPhoto(store, draft, { fetchImpl, dir, deadline }) {
   const event = eventForPick(store, draft.event_id);
   for await (const c of candidates(event, { fetchImpl, deadline, skipUrl: (u) => !!store.imageByUrl(u) })) {
     if (Date.now() > deadline) break;

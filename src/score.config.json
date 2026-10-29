@@ -21,6 +21,8 @@
     "morning_items": 7, "evening_items": 5, "min_items": 3, "per_group": 2, "morning_window_hours": 14,
     "breaking": { "min_sources": 3, "gap_minutes": 30, "per_day": 6, "max_age_minutes": 180 }
   },
+  "brand": "НИЧЕГО СЕБЕ",
+  "card_mode": "fallback",
   "owner_feed_min": 40,
   "owner_feed_top_per_day": 7,
   "owner_feed_tz_hours": 7,

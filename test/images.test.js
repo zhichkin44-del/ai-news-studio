@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseFeed, parseMediaImage } from '../src/collect.js';
 import { openStore } from '../src/store.js';
-import { parseOgImage, parseCommons, checkLicense, keyNames, sniffImage, pickImage, attachImage, attachPending, formatTable } from '../src/images.js';
+import { parseOgImage, parseCommons, checkLicense, keyNames, sniffImage, pickImage, attachImage as attachImageCard, attachPending as attachPendingCard, formatTable } from '../src/images.js';
+
+// эти тесты про фото; карточки (card_mode) проверяет card.test.js
+const OFF = { card_mode: 'off' };
+const attachImage = (store, draft, o = {}) => attachImageCard(store, draft, { config: OFF, ...o });
+const attachPending = (store, o = {}) => attachPendingCard(store, { config: OFF, ...o });
 
 // минимальный PNG 800×600 (заголовок достаточен для разбора размера)
 const png = (w = 800, h = 600, tail = 'a') => {
