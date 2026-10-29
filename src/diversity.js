@@ -21,6 +21,17 @@ export const CATEGORY_SECTION = {
 
 export const sectionOf = (event) => event.section ?? CATEGORY_SECTION[event.category] ?? WORLD_EMERGENCY;
 
+/**
+ * Группа события при отборе. Общий шоковый класс «мир и ЧП» (погибшие, жертвы) не должен
+ * прятать войну/политику от квоты: если тема аудитории — war/russia, группа — политика/война.
+ * Специальные группы шока (наука, ИИ, экономика, знаменитости) сохраняются.
+ */
+export function sectionFor({ shockGroup, audienceCategory, feedCategory } = {}) {
+  const topic = CATEGORY_SECTION[audienceCategory];
+  if (topic === POLITICS && audienceCategory !== 'world' && (!shockGroup || shockGroup === WORLD_EMERGENCY)) return POLITICS;
+  return shockGroup ?? topic ?? CATEGORY_SECTION[feedCategory] ?? WORLD_EMERGENCY;
+}
+
 /** Оценка события для топа и дайджеста: пиковая, иначе текущая. */
 export const peakOf = (event) => Number(event.peak_score ?? event.score ?? 0);
 
@@ -33,11 +44,13 @@ const ranked = (events, scoreOf) => [...events].sort((a, b) => scoreOf(b) - scor
  * необходимости вытесняем). Возвращает выбранные события в порядке убывания оценки.
  */
 export function pickDiverse(events, {
-  limit = 7, perGroup = 2, minOutside = 3, minScore = 40, politics = POLITICS, scoreOf = peakOf,
+  limit = 7, perGroup = 2, minOutside = 3, minScore = 40, politics = POLITICS, scoreOf = peakOf, strict = false,
 } = {}) {
   const list = ranked(events, scoreOf);
   const chosen = [];
   const counts = new Map();
+  // жёсткая квота: политики не больше limit - minOutside, пустые места не добиваем войной
+  const politicsCap = strict ? Math.max(0, limit - Math.min(minOutside, limit)) : Infinity;
   const take = (e) => {
     chosen.push(e);
     const s = sectionOf(e);
@@ -54,6 +67,7 @@ export function pickDiverse(events, {
     if (chosen.length >= limit) break;
     const s = sectionOf(e);
     if ((counts.get(s) ?? 0) >= perGroup) continue;
+    if (s === politics && (counts.get(s) ?? 0) >= politicsCap) continue;
     take(e);
   }
   const outside = () => chosen.filter((e) => sectionOf(e) !== politics).length;

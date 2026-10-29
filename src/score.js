@@ -69,7 +69,9 @@ export function score(event, { now = Date.now(), config = DEFAULT_CONFIG, audien
   reasons.push(...aud.reasons);
 
   // «шок»: масштаб, редкость слова-триггера и число независимых источников
-  const shock = audience ? shockScore({ ...event, independentSources: n }, audience) : { points: 0, reasons: [], group: null };
+  let shock = audience ? shockScore({ ...event, independentSources: n }, audience) : { points: 0, reasons: [], group: null };
+  // однотипная сводка («погиб пресс-офицер», брифинг) не получает шок-очков за одно слово «погиб»
+  if (aud.cancelShock && shock.points) shock = { ...shock, points: 0, reasons: ['шок отменён: однотипная сводка → 0'] };
   reasons.push(...shock.reasons);
 
   // «Сигналы» (категория + аудитория + шок) считаются один раз: иначе один и тот же заголовок

@@ -4,9 +4,10 @@ export const DEFAULT_AUDIENCE = JSON.parse(readFileSync(new URL('./audience.json
 
 const norm = (s) => ` ${String(s ?? '').toLowerCase().replace(/ё/g, 'е')} `;
 const cache = new Map();
-// триггер — с начала слова; конец слова закрывается в самом триггере
+// триггер — с начала слова; конец слова закрывается в самом триггере.
+// \w в JS — только латиница, поэтому в триггерах он читается как «любая буква/цифра» (окончания русских слов)
 const rx = (p) => {
-  if (!cache.has(p)) cache.set(p, new RegExp(`(?<![\\p{L}\\p{N}])(?:${p})`, 'u'));
+  if (!cache.has(p)) cache.set(p, new RegExp(`(?<![\\p{L}\\p{N}])(?:${p.replace(/\\w/g, '[\\p{L}\\p{N}_]')})`, 'u'));
   return cache.get(p);
 };
 const hit = (text, list = []) => list.some((p) => rx(p).test(text));
@@ -60,14 +61,16 @@ export function audienceScore(event, profile = DEFAULT_AUDIENCE) {
     const extra = Math.min((hits.length - 1) * profile.extra_topic, profile.extra_cap);
     points = hits[0].weight + extra;
     reasons.push(`аудитория: «${topic}» → ${hits[0].weight}${extra ? ` (+${extra} за ещё ${hits.length - 1} тем)` : ''}`);
-    const cw = profile.category_weights?.[category] ?? 0;
+    // слабая тема (ниже порога ru_bonus) категорийный вес не получает
+    const cw = hits[0].weight >= (profile.ru_bonus_min_weight ?? 0) ? profile.category_weights?.[category] ?? 0 : 0;
     if (cw) { points += cw; reasons.push(`аудитория: категория «${category}» → ${cw}`); }
     const ru = event.ru ?? /[а-яё]/i.test(event.title ?? '');
     if (ru && profile.ru_bonus && hits[0].weight >= (profile.ru_bonus_min_weight ?? 0)) { points += profile.ru_bonus; reasons.push(`аудитория: русскоязычный источник → ${profile.ru_bonus}`); }
   }
+  let cancelShock = false;
   for (const p of profile.penalties ?? []) {
     const on = (p.any ? hit(text, p.any) : true) && (p.all ? p.all.every((g) => hit(text, g)) : true) && !hit(text, p.unless);
-    if ((p.any || p.all) && on) { points -= p.points; reasons.push(`аудитория: ${p.name} → -${p.points}`); }
+    if ((p.any || p.all) && on) { points -= p.points; reasons.push(`аудитория: ${p.name} → -${p.points}`); if (p.cancel_shock) cancelShock = true; }
   }
-  return { points, topic, category, reasons };
+  return { points, topic, category, reasons, cancelShock };
 }

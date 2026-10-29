@@ -3,7 +3,7 @@ import { cluster } from './cluster.js';
 import { loadSources } from './collect.js';
 import { decide, clusterId, firstSeenOf, eventMeta, sourceMetaOf } from './issue.js';
 import { DEFAULT_CONFIG, isBreaking } from './score.js';
-import { CATEGORY_SECTION, POLITICS, WORLD_EMERGENCY, pickDiverse, peakOf } from './diversity.js';
+import { POLITICS, pickDiverse, peakOf, sectionOf, sectionFor } from './diversity.js';
 import { openStore, DEFAULT_DB } from './store.js';
 
 /** Статус по решению decide: отобрано / отклонено (ворота) / новое (ниже порога, один источник — может подрасти). */
@@ -25,18 +25,20 @@ export function ownerDay(firstSeen, tzHours = 7) {
  * events: [{ id, score, peak_score, section, category, first_seen, status }]. Возвращает Set id.
  */
 export function topOfDay(events, {
-  min = 40, perDay = 7, tzHours = 7, perGroup = 2, minOutside = 3, politics = POLITICS,
+  min = 40, perDay = 7, tzHours = 7, perGroup = 2, minOutside = 3, politics = POLITICS, relax = 0,
 } = {}) {
   const byDay = new Map();
   for (const e of events) {
     const day = ownerDay(e.first_seen, tzHours);
-    if (!day || e.status === 'отклонено' || !(peakOf(e) >= min)) continue;
+    // не политика/война проходит с пониженным порогом (relax): квота не добивается войной
+    const floor = sectionOf(e) === politics ? min : min - relax;
+    if (!day || e.status === 'отклонено' || !(peakOf(e) >= floor)) continue;
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day).push(e);
   }
   const top = new Set();
   for (const list of byDay.values()) {
-    for (const e of pickDiverse(list, { limit: perDay, perGroup, minOutside, minScore: min, politics })) top.add(e.id);
+    for (const e of pickDiverse(list, { limit: perDay, perGroup, minOutside, minScore: min, politics, strict: true })) top.add(e.id);
   }
   return top;
 }
@@ -83,7 +85,7 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
     store.setCategory(r.id, ['science', 'space', 'health', 'tech'].includes(srcCat) ? srcCat : d.sc.audienceCategory ?? srcCat);
     // группа разнообразия: шоковый класс, затем тема аудитории, затем категория ленты
     // (у общих ru-лент категория russia — она не должна перебивать тему «экономика», «наука» и т. п.)
-    const section = d.sc.shockGroup ?? CATEGORY_SECTION[d.sc.audienceCategory] ?? CATEGORY_SECTION[srcCat] ?? WORLD_EMERGENCY;
+    const section = sectionFor({ shockGroup: d.sc.shockGroup, audienceCategory: d.sc.audienceCategory, feedCategory: srcCat });
     store.setSection(r.id, section);
     out.events++;
     let [status, reason] = selectStatus(c, d);
@@ -149,7 +151,7 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
   const dayEvents = nowDay ? all.filter((e) => ownerDay(e.first_seen, tz) === nowDay) : [];
   const top = topOfDay(dayEvents, {
     min: cfg.owner_feed_min ?? 40, perDay: cfg.owner_feed_top_per_day ?? 7, tzHours: tz,
-    perGroup, minOutside, politics,
+    perGroup, minOutside, politics, relax: div.relax_points ?? 0,
   });
   store.setTopOfDay(top, all.map((e) => e.id));
   out.top = top.size;

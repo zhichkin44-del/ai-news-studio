@@ -33,7 +33,7 @@ export function digest(store, { from, to, limit = 7, config = DEFAULT_CONFIG } =
     .filter((e) => e.status !== 'отклонено' && Date.parse(e.first_seen) >= a && Date.parse(e.first_seen) < b);
   return pickDiverse(rows, {
     limit, perGroup: div.per_group ?? 2, minOutside: div.min_outside_politics ?? 3,
-    minScore: config.owner_feed_min ?? 40, politics: div.politics ?? POLITICS,
+    minScore: config.owner_feed_min ?? 40, politics: div.politics ?? POLITICS, strict: true,
   }).map((e) => ({ id: e.id, title: e.title, score: peakOf(e), category: e.category }));
 }
 
