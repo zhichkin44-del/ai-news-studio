@@ -50,8 +50,9 @@ function latencyStats(items) {
 export function computeMetrics(store, { now = new Date(), hours = 24, sources = [], groups = {} } = {}) {
   const since = new Date(now.getTime() - hours * 3600e3).toISOString();
   const freshSince = now.getTime() - FRESH_MS;
-  const items = store.itemsSince(since);
-  const polls = store.pollsSince(since);
+  const hypeIds = new Set(sources.filter((s) => s.type === 'hype').map((s) => s.id));
+  const items = store.itemsSince(since).filter((i) => !hypeIds.has(i.source)); // сигналы хайпа — не ленты СМИ
+  const polls = store.pollsSince(since).filter((p) => !hypeIds.has(p.source));
 
   const clusters = items.length ? cluster(items, 0.4, groups) : [];
   const multi = clusters.filter((c) => c.sourceCount >= 2).length;
@@ -66,7 +67,7 @@ export function computeMetrics(store, { now = new Date(), hours = 24, sources = 
   const high = scored.filter((x) => x.score >= HIGH_SCORE);
   const highTarget = DEFAULT_CONFIG.targets?.high_share ?? null;
 
-  const ids = [...new Set([...sources.map((s) => s.id), ...items.map((i) => i.source), ...polls.map((p) => p.source)])];
+  const ids = [...new Set([...sources.filter((s) => !hypeIds.has(s.id)).map((s) => s.id), ...items.map((i) => i.source), ...polls.map((p) => p.source)])];
   const feeds = ids.map((id) => {
     const its = items.filter((i) => i.source === id);
     const ps = polls.filter((p) => p.source === id);

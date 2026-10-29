@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { fetchFeed, loadSources } from './collect.js';
+import { isHype } from './hype/index.js';
 
 const FRESH_MS = 6 * 3600 * 1000;
 const SLOW_MS = 48 * 3600 * 1000; // редкие ленты (ООН выходит раз в сутки): окно свежести 48 часов
@@ -25,7 +26,7 @@ export function formatSmoke({ rows }) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const res = await smoke(await loadSources());
+  const res = await smoke((await loadSources()).filter((s) => !isHype(s))); // у сигналов хайпа нет «свежести лент»: их проверяет живой сбор радара
   console.log(formatSmoke(res));
   process.exit(res.ok ? 0 : 1);
 }

@@ -1,0 +1,21 @@
+{
+  "_comment": "Детектор всплесков; правится без кода. recent_minutes — «последний час»; baseline = остальные window_hours, в пересчёте на час. floor_per_hour — пол базы (тема без истории не делит на ноль). type_window_hours — окно, в котором считаем разные виды источников. min_history_hours — пока радар копит базу меньше этого, всплески не считаются (иначе любая тема «внезапная»). aliases — слово на английском → слово на русском (сводит одну тему через языки).",
+  "window_hours": 24,
+  "min_history_hours": 6,
+  "recent_minutes": 60,
+  "min_ratio": 5,
+  "min_recent": 3,
+  "floor_per_hour": 0.25,
+  "min_types": 2,
+  "min_tokens": 2,
+  "type_window_hours": 6,
+  "max_df_share": 0.2,
+  "merge_jaccard": 0.5,
+  "max_events": 5,
+  "aliases": {
+    "oil": "нефть", "spill": "разлив", "earthquake": "землетрясение", "tsunami": "цунами", "volcano": "вулкан", "eruption": "извержение",
+    "flood": "наводнение", "hurricane": "ураган", "wildfire": "пожар", "fire": "пожар", "explosion": "взрыв", "shooting": "стрельба",
+    "putin": "путин", "trump": "трамп", "ukraine": "украина", "russia": "россия", "china": "китай", "israel": "израиль", "iran": "иран",
+    "hack": "взлом", "outage": "сбой", "tanker": "танкер", "beach": "пляж", "whale": "кит", "shark": "акула", "meteor": "метеорит", "asteroid": "астероид"
+  }
+}

@@ -5,7 +5,7 @@ export const OUTLETS = [
   // мировые ленты
   'BBC', 'Би-би-си', 'Русская служба', 'DW', 'Deutsche Welle', 'Дойче велле', 'Новости ООН', 'UN News',
   'Al Jazeera', 'Аль-Джазира', 'Гардиан', 'Guardian', 'NPR', 'Reuters', 'Associated Press', 'AP Top News',
-  'The Verge', 'Wired', 'Bloomberg', 'Reddit', 'Wikipedia', 'Википедия',
+  'The Verge', 'Wired', 'Bloomberg', 'Reddit', 'Wikipedia', 'Википедия', 'Google Trends', 'Bluesky',
   // российские ленты
   'ТАСС', 'РИА Новости', 'РИА', 'Лента.ру', 'РБК', 'Медуза', 'Украинская правда', 'Медиазона',
   'Радио Свобода', 'Настоящее время', 'Фонтанка', 'Sports.ru', 'Интерфакс', 'Коммерсантъ',

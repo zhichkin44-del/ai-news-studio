@@ -1,7 +1,8 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchFeed, loadSources } from './collect.js';
+import { loadSources } from './collect.js';
+import { fetchSource, isHype } from './hype/index.js';
 import { openStore, DEFAULT_DB } from './store.js';
 
 export const INTERVAL_SEC = 120;
@@ -16,7 +17,12 @@ function logError(logPath, source, error, ts) {
  * Один проход по лентам. Ошибка или пустой ответ одной ленты — в журнал и в polls, остальные идут дальше.
  * Записи первого успешного опроса ленты помечены baseline (это накопившаяся история, не «свежее»).
  */
-export async function pollOnce(sources, { store, loader = fetchFeed, logPath = ERROR_LOG, now = () => new Date() } = {}) {
+export async function pollOnce(allSources, { store, loader = fetchSource, logPath = ERROR_LOG, now = () => new Date() } = {}) {
+  // у источников хайпа свой ритм (every_min): между опросами они молчат и в polls не пишутся
+  const sources = allSources.filter((s) => {
+    const last = s.every_min && store.lastPollTs(s.id);
+    return !last || now().getTime() - Date.parse(last) >= s.every_min * 60000;
+  });
   const results = await Promise.allSettled(sources.map((s) => loader(s)));
   const summary = [];
   results.forEach((r, i) => {
@@ -25,7 +31,8 @@ export async function pollOnce(sources, { store, loader = fetchFeed, logPath = E
     let error = null;
     let items = [];
     if (r.status === 'rejected') error = String(r.reason?.message ?? r.reason);
-    else if (!r.value.length) error = 'пустой ответ: 0 записей';
+    // у сигналов хайпа пусто — норма (Reddit ответил 429, в Википедии нет резкого роста)
+    else if (!r.value.length && !isHype(src)) error = 'пустой ответ: 0 записей';
     else items = r.value;
     let added = 0;
     try {

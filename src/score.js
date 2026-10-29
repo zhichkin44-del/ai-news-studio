@@ -81,13 +81,22 @@ export function score(event, { now = Date.now(), config = DEFAULT_CONFIG, audien
   const capped = Math.min(signalMax, signals);
   if (signals > signalMax) reasons.push(`сигналы ${signals} ограничены ${signalMax}`);
 
+  // «хайп»: тема набрала обороты в соцсетях/поиске и подтверждена разными видами источников (вес — audience.json → hype)
+  let hypePts = 0;
+  const hv = audience?.hype;
+  if (event.hype && hv) {
+    const types = Math.max(2, event.hype.types ?? 2);
+    hypePts = Math.min(hv.max_points, hv.base + hv.per_type * (types - 2) + ((event.hype.ratio ?? 0) >= hv.big_ratio ? hv.big_bonus : 0));
+    reasons.push(`хайп: всплеск ×${event.hype.ratio ?? '?'}, видов источников ${types} → ${hypePts}`);
+  }
+
   const acute = matches(text, config.acute);
   const single = n < 2;
   if (single) reasons.push('одно-источниковое: только с одобрения владельца');
   if (acute) reasons.push('острое: только с одобрения владельца');
   return {
-    score: Math.min(100, Math.max(0, fr + srcPts + topicPts + growthPts + capped)),
-    reasons, needsOwner: single || acute, single, acute, topic, audience: aud.points, audienceCategory: aud.category,
+    score: Math.min(100, Math.max(0, fr + srcPts + topicPts + growthPts + capped + hypePts)),
+    reasons, needsOwner: single || acute, single, acute, topic, audience: aud.points, audienceCategory: aud.category, hype: hypePts,
     shock: shock.points, shockGroup: shock.group,
   };
 }

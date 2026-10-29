@@ -4,6 +4,7 @@
   "ru_bonus_min_weight": 10,
   "extra_topic": 3,
   "extra_cap": 9,
+  "hype": { "_comment": "Очки «хайпа» для события из всплеска (src/hype): base — минимум (2 вида источников), per_type — за каждый следующий вид, big_bonus — если рост ≥ big_ratio раз; не больше max_points. Вне лимита signals_max.", "max_points": 30, "base": 18, "per_type": 5, "big_ratio": 20, "big_bonus": 5 },
   "category_weights": { "war": 5, "russia": 5, "economy": 6, "accidents": 6, "science": 6, "tech": 6, "world": 4, "society": 3, "celebrity": 3, "sport": 3 },
   "shock": {
     "max_points": 30,

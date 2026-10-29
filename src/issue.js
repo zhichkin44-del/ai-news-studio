@@ -6,6 +6,7 @@ import { select } from './select.js';
 import { gate } from './gate.js';
 import { score, DEFAULT_CONFIG } from './score.js';
 import { openStore, DEFAULT_DB } from './store.js';
+import { isHype } from './hype/index.js';
 
 export const DRAFT_PLACEHOLDER = '_[ЗАГЛУШКА: пересказ своими словами напишет роль «Автор» на следующем шаге]_';
 
@@ -47,7 +48,7 @@ export function decide(c, { now = Date.now(), scoreConfig, gateOpts, sourceMeta 
   const g = gate(post, gateOpts);
   const cfg = scoreConfig ?? DEFAULT_CONFIG;
   const sc = score(
-    { title: c.title, summary: c.items.map((i) => i.summary).join(' '), firstSeen: firstSeenOf(c), independentSources: c.sourceCount, ...eventMeta(c, sourceMeta), times: c.items.map((i) => i.published) },
+    { title: c.title, summary: c.items.map((i) => i.summary).join(' '), firstSeen: firstSeenOf(c), independentSources: c.sourceCount, ...eventMeta(c, sourceMeta), times: c.items.map((i) => i.published), ...(c.hype && { hype: c.hype }) },
     { now, config: cfg },
   );
   let status, reason;
@@ -115,7 +116,7 @@ export function buildIssue(clusters, { date = new Date(), sources = [], errors =
 
 export async function makeIssue({ n = 30, outDir = 'out/test-channel', now = new Date(), loader, sources, dbPath = DEFAULT_DB, scoreConfig } = {}) {
   const list = sources ?? (await loadSources());
-  const { items, errors } = await collect(list, loader ? { loader } : {});
+  const { items, errors } = await collect(list.filter((s) => !isHype(s)), loader ? { loader } : {}); // сигналы хайпа — не новости, их разбирает select
   const clusters = select(items, { n, now: now.getTime(), groups: Object.fromEntries(list.map((s) => [s.id, s.group ?? s.id])) });
   const store = openStore(dbPath);
   let built;

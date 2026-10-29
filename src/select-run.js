@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { cluster } from './cluster.js';
+import { BURST_CONFIG, detectBursts, burstTitle, timeOf } from './hype/burst.js';
+import { kindsOf } from './hype/index.js';
 import { loadSources } from './collect.js';
 import { decide, clusterId, firstSeenOf, eventMeta, sourceMetaOf } from './issue.js';
 import { DEFAULT_CONFIG, isBreaking } from './score.js';
@@ -58,22 +61,52 @@ export function latestPerPublisher(sources, groups = {}) {
 }
 
 /**
+ * Всплеск → кластер для decide: заголовок из лент СМИ (иначе сильнейший сигнал), в источниках события — все записи всплеска
+ * (ссылки хранятся только в базе). Независимых источников = издатели СМИ + виды сигналов. Свежесть и рост — по последнему часу.
+ */
+export function burstCluster(b, { now = Date.now(), kinds = {}, groups = {}, config = BURST_CONFIG } = {}) {
+  const recentFrom = now - config.recent_minutes * 60000;
+  const recent = b.items.filter((i) => timeOf(i, now) > recentFrom);
+  const toItem = (r) => ({ id: r.id, source: r.source, title: r.title, summary: r.summary ?? '', link: r.link, published: r.published });
+  const publishers = new Set(b.mediaItems.map((i) => groups[i.source] ?? i.source));
+  const signalKinds = new Set(b.signalItems.map((i) => kinds[i.source]));
+  const items = (recent.length ? recent : b.items).map(toItem);
+  return {
+    id: createHash('sha1').update(`hype:${[...b.tokens].sort().join(' ')}:${new Date(now).toISOString().slice(0, 10)}`).digest('hex').slice(0, 12),
+    title: burstTitle(b, config),
+    items, sources: b.items.map(toItem),
+    sourceCount: publishers.size + signalKinds.size,
+    newest: items.map((i) => i.published).filter(Boolean).sort().at(-1) ?? null,
+    status: 'подтверждено',
+    hype: { types: b.types.length, ratio: b.ratio, tokens: b.tokens },
+  };
+}
+
+/**
  * Записи items за последние `hours` часов → кластеры → оценка → события в базе.
  * Выпущенное и событие с черновиком не трогаем (статус не сбрасывается). Постов и файлов не пишем.
  */
-export function selectEvents(store, { hours = 24, now = new Date(), groups = {}, names = {}, sourceMeta = {}, scoreConfig } = {}) {
+export function selectEvents(store, { hours = 24, now = new Date(), groups = {}, names = {}, sourceMeta = {}, scoreConfig, kinds = {}, burstConfig } = {}) {
   const cfg = scoreConfig ?? DEFAULT_CONFIG;
   const since = new Date(now.getTime() - hours * 3.6e6).toISOString();
-  const items = store.itemsSince(since).map((r) => ({ id: r.id, source: r.source, title: r.title, summary: r.summary ?? '', link: r.link, published: r.published }));
-  const clusters = cluster(items, undefined, groups);
+  const rows = store.itemsSince(since);
+  // сигналы хайпа (Reddit, Trends, …) — не новости: в кластеры идут только ленты СМИ
+  const toItem = (r) => ({ id: r.id, source: r.source, title: r.title, summary: r.summary ?? '', link: r.link, published: r.published });
+  const bursts = Object.keys(kinds).length ? detectBursts(rows, {
+    now: now.getTime(), kinds, config: burstConfig,
+    known: store.list().filter((e) => e.top_of_day && !e.hype).map((e) => e.title), // тема уже в топе — не новая
+  }) : [];
+  const inBurst = new Set(bursts.flatMap((b) => b.mediaItems.map((i) => i.id)));
+  const items = rows.filter((r) => !kinds[r.source] && !inBurst.has(r.id)).map(toItem);
+  const clusters = [...bursts.map((b) => burstCluster(b, { now: now.getTime(), kinds, groups, config: burstConfig })), ...cluster(items, undefined, groups)];
   const stamp = now.toISOString();
   const seen = new Set();
-  const out = { items: items.length, events: 0, selected: 0, rejected: 0, fresh: 0, breaking: 0 };
+  const out = { items: items.length, events: 0, selected: 0, rejected: 0, fresh: 0, breaking: 0, hype: bursts.length };
   for (const c of clusters) {
     const d = decide(c, { now: now.getTime(), scoreConfig: cfg, sourceMeta });
     const r = store.upsert(
       {
-        id: clusterId(c), title: c.title, firstSeen: firstSeenOf(c), independentSources: c.sourceCount, score: d.sc.score, reasons: d.sc.reasons, needsOwner: d.sc.needsOwner,
+        id: c.id ?? clusterId(c), hype: !!c.hype, title: c.title, firstSeen: firstSeenOf(c), independentSources: c.sourceCount, score: d.sc.score, reasons: d.sc.reasons, needsOwner: d.sc.needsOwner,
         sources: c.sources.map((s) => ({ source: s.source, name: names[s.source] ?? s.source, link: s.link, published: s.published })),
       },
       stamp,
@@ -174,8 +207,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       groups: Object.fromEntries(sources.map((s) => [s.id, s.group ?? s.id])),
       names: Object.fromEntries(sources.map((s) => [s.id, s.name])),
       sourceMeta: sourceMetaOf(sources),
+      kinds: kindsOf(sources),
     });
-    console.log(`записей ${r.items}, событий ${r.events}, отобрано ${r.selected}, отклонено ${r.rejected}, в топе дня ${r.top}, срочных ${r.breaking}`);
+    console.log(`записей ${r.items}, событий ${r.events}, отобрано ${r.selected}, отклонено ${r.rejected}, в топе дня ${r.top}, срочных ${r.breaking}, всплесков хайпа ${r.hype}`);
   } finally {
     store.close();
   }

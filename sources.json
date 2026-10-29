@@ -95,6 +95,12 @@
     {"id": "rg", "group": "rg", "category": "russia", "name": "Российская газета", "url": "https://rg.ru/xml/index.xml", "lang": "ru"},
     {"id": "vedomosti", "group": "vedomosti", "category": "economy", "name": "Ведомости", "url": "https://www.vedomosti.ru/rss/news", "lang": "ru"},
     {"id": "championat", "group": "championat", "category": "sport", "name": "Чемпионат.com", "url": "https://www.championat.com/rss/news/", "lang": "ru"},
-    {"id": "sport-express", "group": "sport-express", "category": "sport", "name": "Спорт-Экспресс", "url": "https://www.sport-express.ru/services/materials/news/se/", "lang": "ru"}
+    {"id": "sport-express", "group": "sport-express", "category": "sport", "name": "Спорт-Экспресс", "url": "https://www.sport-express.ru/services/materials/news/se/", "lang": "ru"},
+    {"id": "trends-ru", "type": "hype", "kind": "trends", "geo": "RU", "every_min": 10, "group": "trends-ru", "category": "world", "name": "Google Trends RU", "url": "https://trends.google.com/trending/rss", "lang": "ru"},
+    {"id": "trends-us", "type": "hype", "kind": "trends", "geo": "US", "every_min": 10, "group": "trends-us", "category": "world", "name": "Google Trends US", "url": "https://trends.google.com/trending/rss", "lang": "en"},
+    {"id": "reddit", "type": "hype", "kind": "reddit", "every_min": 10, "pause_ms": 2500, "min_score": 300, "subs": ["worldnews", "news", "interestingasfuck", "nextfuckinglevel", "PublicFreakout", "technology", "space", "Damnthatsinteresting"], "group": "reddit", "category": "world", "name": "Reddit", "url": "https://www.reddit.com/r/worldnews/hot.json", "lang": "en"},
+    {"id": "wiki-en", "type": "hype", "kind": "wikipedia", "project": "en.wikipedia", "every_min": 360, "min_views": 40000, "ratio": 4, "baseline_days": 6, "group": "wiki-en", "category": "world", "name": "Wikipedia EN", "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia/all-access", "lang": "en"},
+    {"id": "wiki-ru", "type": "hype", "kind": "wikipedia", "project": "ru.wikipedia", "every_min": 360, "min_views": 8000, "ratio": 4, "baseline_days": 6, "group": "wiki-ru", "category": "world", "name": "Википедия RU", "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/top/ru.wikipedia/all-access", "lang": "ru"},
+    {"id": "bluesky", "type": "hype", "kind": "bluesky", "every_min": 10, "min_reposts": 150, "group": "bluesky", "category": "world", "name": "Bluesky", "url": "https://public.api.bsky.app/xrpc/app.bsky.feed.getFeed", "lang": "en"}
   ]
 }

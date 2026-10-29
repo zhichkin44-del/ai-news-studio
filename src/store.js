@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS items (
   published TEXT,
   first_seen TEXT NOT NULL,
   baseline INTEGER NOT NULL DEFAULT 0,
-  image TEXT
+  image TEXT,
+  meta TEXT
 );
 CREATE TABLE IF NOT EXISTS images (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,8 +122,11 @@ export function openStore(path = DEFAULT_DB) {
   if (!cols.includes('top_of_day')) db.exec('ALTER TABLE events ADD COLUMN top_of_day INTEGER NOT NULL DEFAULT 0');
   if (!cols.includes('breaking')) db.exec('ALTER TABLE events ADD COLUMN breaking INTEGER NOT NULL DEFAULT 0');
   if (!cols.includes('peak_score')) db.exec('ALTER TABLE events ADD COLUMN peak_score INTEGER');
+  if (!cols.includes('hype')) db.exec('ALTER TABLE events ADD COLUMN hype INTEGER NOT NULL DEFAULT 0');
   if (!cols.includes('section')) db.exec('ALTER TABLE events ADD COLUMN section TEXT');
-  if (!db.prepare('PRAGMA table_info(items)').all().some((c) => c.name === 'image')) db.exec('ALTER TABLE items ADD COLUMN image TEXT');
+  const icols = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
+  if (!icols.includes('image')) db.exec('ALTER TABLE items ADD COLUMN image TEXT');
+  if (!icols.includes('meta')) db.exec('ALTER TABLE items ADD COLUMN meta TEXT'); // числа сигналов хайпа (очки, комментарии, трафик) — JSON
 
   const dcols = db.prepare('PRAGMA table_info(drafts)').all().map((c) => c.name);
   if (!dcols.includes('message_id')) db.exec('ALTER TABLE drafts ADD COLUMN message_id TEXT');
@@ -155,11 +159,12 @@ export function openStore(path = DEFAULT_DB) {
         }
         const firstSeen = minIso(prev?.first_seen, ev.firstSeen ?? null);
         const peak = Math.max(Number(prev?.peak_score ?? 0), Number(ev.score ?? 0));
-        const vals = [ev.title, firstSeen, ev.independentSources, ev.score ?? null, peak, JSON.stringify(ev.reasons ?? []), ev.needsOwner ? 1 : 0, now];
+        const hype = Math.max(Number(prev?.hype ?? 0), ev.hype ? 1 : 0); // признак хайпа не снимается
+        const vals = [ev.title, firstSeen, ev.independentSources, ev.score ?? null, peak, JSON.stringify(ev.reasons ?? []), ev.needsOwner ? 1 : 0, hype, now];
         if (prev) {
-          db.prepare('UPDATE events SET title=?, first_seen=?, independent_sources=?, score=?, peak_score=?, reasons=?, needs_owner=?, updated_at=? WHERE id=?').run(...vals, id);
+          db.prepare('UPDATE events SET title=?, first_seen=?, independent_sources=?, score=?, peak_score=?, reasons=?, needs_owner=?, hype=?, updated_at=? WHERE id=?').run(...vals, id);
         } else {
-          db.prepare('INSERT INTO events (title, first_seen, independent_sources, score, peak_score, reasons, needs_owner, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(...vals, id, now);
+          db.prepare('INSERT INTO events (title, first_seen, independent_sources, score, peak_score, reasons, needs_owner, hype, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(...vals, id, now);
         }
         const ins = db.prepare('INSERT OR IGNORE INTO event_sources (event_id, source, name, link, published) VALUES (?,?,?,?,?)');
         for (const s of ev.sources) ins.run(id, s.source, s.name ?? null, s.link, s.published ?? null);
@@ -218,11 +223,11 @@ export function openStore(path = DEFAULT_DB) {
     },
     /** Радар: новые записи лент. first_seen ставится один раз (повтор id игнорируется). Возвращает число новых. */
     addItems(items, { now = new Date().toISOString(), baseline = false } = {}) {
-      const ins = db.prepare('INSERT OR IGNORE INTO items (id, source, title, summary, link, published, first_seen, baseline, image) VALUES (?,?,?,?,?,?,?,?,?)');
+      const ins = db.prepare('INSERT OR IGNORE INTO items (id, source, title, summary, link, published, first_seen, baseline, image, meta) VALUES (?,?,?,?,?,?,?,?,?,?)');
       let added = 0;
       db.exec('BEGIN IMMEDIATE');
       try {
-        for (const i of items) added += Number(ins.run(i.id, i.source, i.title, i.summary ?? null, i.link, i.published ?? null, now, baseline ? 1 : 0, i.image ?? null).changes);
+        for (const i of items) added += Number(ins.run(i.id, i.source, i.title, i.summary ?? null, i.link, i.published ?? null, now, baseline ? 1 : 0, i.image ?? null, i.meta ? JSON.stringify(i.meta) : null).changes);
         db.exec('COMMIT');
       } catch (e) {
         db.exec('ROLLBACK');
@@ -232,6 +237,8 @@ export function openStore(path = DEFAULT_DB) {
     },
     hasItems: (source) => !!db.prepare('SELECT 1 FROM items WHERE source = ? LIMIT 1').get(source),
     itemsSince: (since) => db.prepare('SELECT * FROM items WHERE first_seen >= ? ORDER BY first_seen, id').all(since),
+    /** Время последнего опроса источника (для every_min у источников хайпа). */
+    lastPollTs: (source) => db.prepare('SELECT MAX(ts) AS ts FROM polls WHERE source = ?').get(source).ts ?? null,
     recordPoll(source, { ok, count = 0, error = null }, ts = new Date().toISOString()) {
       db.prepare('INSERT INTO polls (source, ts, ok, count, error) VALUES (?,?,?,?,?)').run(source, ts, ok ? 1 : 0, count, error);
     },
