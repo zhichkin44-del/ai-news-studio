@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS events (
   first_seen TEXT,
   independent_sources INTEGER NOT NULL DEFAULT 0,
   score INTEGER,
+  peak_score INTEGER,
+  section TEXT,
   reasons TEXT NOT NULL DEFAULT '[]',
   needs_owner INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'новое',
@@ -105,6 +107,8 @@ export function openStore(path = DEFAULT_DB) {
   if (!cols.includes('category')) db.exec('ALTER TABLE events ADD COLUMN category TEXT');
   if (!cols.includes('top_of_day')) db.exec('ALTER TABLE events ADD COLUMN top_of_day INTEGER NOT NULL DEFAULT 0');
   if (!cols.includes('breaking')) db.exec('ALTER TABLE events ADD COLUMN breaking INTEGER NOT NULL DEFAULT 0');
+  if (!cols.includes('peak_score')) db.exec('ALTER TABLE events ADD COLUMN peak_score INTEGER');
+  if (!cols.includes('section')) db.exec('ALTER TABLE events ADD COLUMN section TEXT');
   if (!db.prepare('PRAGMA table_info(items)').all().some((c) => c.name === 'image')) db.exec('ALTER TABLE items ADD COLUMN image TEXT');
 
   const row = (r) => r && { ...r, reasons: JSON.parse(r.reasons), needs_owner: !!r.needs_owner };
@@ -133,11 +137,12 @@ export function openStore(path = DEFAULT_DB) {
           db.prepare('DELETE FROM events WHERE id = ?').run(other);
         }
         const firstSeen = minIso(prev?.first_seen, ev.firstSeen ?? null);
-        const vals = [ev.title, firstSeen, ev.independentSources, ev.score ?? null, JSON.stringify(ev.reasons ?? []), ev.needsOwner ? 1 : 0, now];
+        const peak = Math.max(Number(prev?.peak_score ?? 0), Number(ev.score ?? 0));
+        const vals = [ev.title, firstSeen, ev.independentSources, ev.score ?? null, peak, JSON.stringify(ev.reasons ?? []), ev.needsOwner ? 1 : 0, now];
         if (prev) {
-          db.prepare('UPDATE events SET title=?, first_seen=?, independent_sources=?, score=?, reasons=?, needs_owner=?, updated_at=? WHERE id=?').run(...vals, id);
+          db.prepare('UPDATE events SET title=?, first_seen=?, independent_sources=?, score=?, peak_score=?, reasons=?, needs_owner=?, updated_at=? WHERE id=?').run(...vals, id);
         } else {
-          db.prepare('INSERT INTO events (title, first_seen, independent_sources, score, reasons, needs_owner, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?)').run(...vals, id, now);
+          db.prepare('INSERT INTO events (title, first_seen, independent_sources, score, peak_score, reasons, needs_owner, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(...vals, id, now);
         }
         const ins = db.prepare('INSERT OR IGNORE INTO event_sources (event_id, source, name, link, published) VALUES (?,?,?,?,?)');
         for (const s of ev.sources) ins.run(id, s.source, s.name ?? null, s.link, s.published ?? null);
@@ -164,9 +169,22 @@ export function openStore(path = DEFAULT_DB) {
     setCategory(id, category) {
       db.prepare('UPDATE events SET category=? WHERE id=?').run(category ?? null, id);
     },
-    /** Срочное: breaking=1 ставится и не снимается (флаг для уведомлений, история остаётся). */
-    setBreaking(id) {
-      db.prepare('UPDATE events SET breaking=1 WHERE id=?').run(id);
+    /** Группа разнообразия (политика/война, мир и ЧП, наука, …). */
+    setSection(id, section) {
+      db.prepare('UPDATE events SET section=? WHERE id=?').run(section ?? null, id);
+    },
+    /** Срочное за день: breaking=1 у перечисленных id, у остальных из `scope` — 0. */
+    setBreakingFlags(breakingIds, scopeIds) {
+      const up = db.prepare('UPDATE events SET breaking=? WHERE id=?');
+      const on = new Set(breakingIds);
+      db.exec('BEGIN');
+      try {
+        for (const id of scopeIds) up.run(on.has(id) ? 1 : 0, id);
+        db.exec('COMMIT');
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      }
     },
     /** Лента владельца: top_of_day=1 у перечисленных id, у остальных из `scope` — 0. */
     setTopOfDay(topIds, scopeIds) {

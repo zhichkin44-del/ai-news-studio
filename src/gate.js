@@ -2,8 +2,14 @@ export const MAX_LENGTH = 1024;
 
 /** Издания и ленты из sources.json (названия и узнаваемые части). Согласованность проверяет тест. */
 export const OUTLETS = [
+  // мировые ленты
   'BBC', 'Би-би-си', 'Русская служба', 'DW', 'Deutsche Welle', 'Дойче велле', 'Новости ООН', 'UN News',
-  'Al Jazeera', 'Аль-Джазира', 'Гардиан', 'Guardian', 'NPR',
+  'Al Jazeera', 'Аль-Джазира', 'Гардиан', 'Guardian', 'NPR', 'Reuters', 'Associated Press', 'AP Top News',
+  'The Verge', 'Wired', 'Bloomberg', 'Reddit', 'Wikipedia', 'Википедия',
+  // российские ленты
+  'ТАСС', 'РИА Новости', 'РИА', 'Лента.ру', 'РБК', 'Медуза', 'Украинская правда', 'Медиазона',
+  'Радио Свобода', 'Настоящее время', 'Фонтанка', 'Sports.ru', 'Интерфакс', 'Коммерсантъ',
+  'Новая газета', 'Газета.ру', 'Чемпионат.com',
   // NASA, ESA и Nature — ещё и предмет новостей, поэтому запрещены только как названия лент
   'Nature News', 'Science (AAAS) News', 'AAAS', 'Phys.org', 'ScienceDaily', 'N+1', 'Naked Science', 'NASA Breaking News', 'ESA Space News',
   'MIT Technology Review', 'Ars Technica', 'TechCrunch', 'Hacker News', 'Хабр', 'STAT News', 'CNBC',

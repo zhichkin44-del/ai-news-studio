@@ -1,5 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { openStore, DEFAULT_DB } from './store.js';
+import { DEFAULT_CONFIG } from './score.js';
+import { POLITICS, pickDiverse, peakOf } from './diversity.js';
 
 const TZ = 7; // часовой пояс владельца, UTC+7
 const HOUR = 3.6e6;
@@ -22,15 +24,17 @@ export function lastNight(now = new Date()) {
  * «Главное за ночь»: до `limit` лучших событий с first_seen в [from, to), без отклонённых.
  * Возвращает [{ id, title, score, category }] по убыванию оценки.
  */
-export function digest(store, { from, to, limit = 7 } = {}) {
+export function digest(store, { from, to, limit = 7, config = DEFAULT_CONFIG } = {}) {
   const a = from.getTime();
   const b = to.getTime();
-  return store
+  const div = config.diversity ?? {};
+  const rows = store
     .list()
-    .filter((e) => e.status !== 'отклонено' && Date.parse(e.first_seen) >= a && Date.parse(e.first_seen) < b)
-    .sort((x, y) => y.score - x.score || (x.first_seen < y.first_seen ? -1 : 1) || (x.id < y.id ? -1 : 1))
-    .slice(0, limit)
-    .map((e) => ({ id: e.id, title: e.title, score: e.score, category: e.category }));
+    .filter((e) => e.status !== 'отклонено' && Date.parse(e.first_seen) >= a && Date.parse(e.first_seen) < b);
+  return pickDiverse(rows, {
+    limit, perGroup: div.per_group ?? 2, minOutside: div.min_outside_politics ?? 3,
+    minScore: config.owner_feed_min ?? 40, politics: div.politics ?? POLITICS,
+  }).map((e) => ({ id: e.id, title: e.title, score: peakOf(e), category: e.category }));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

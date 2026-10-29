@@ -68,9 +68,28 @@ export function parseFeed(xml, source) {
   return out;
 }
 
+/** Байты ленты в строку: charset из заголовка или XML-объявления (Газета.ру — windows-1251/cp1251). */
+export function decodeBuffer(buf, contentType = '') {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const fromHeader = /charset\s*=\s*["']?([\w-]+)/i.exec(contentType)?.[1];
+  const head = new TextDecoder('utf-8').decode(bytes.subarray(0, 256));
+  const charset = (fromHeader ?? /encoding\s*=\s*["']([\w-]+)/i.exec(head)?.[1] ?? 'utf-8').toLowerCase();
+  if (charset === 'utf-8' || charset === 'utf8') return new TextDecoder('utf-8').decode(bytes);
+  const label = charset === 'cp1251' ? 'windows-1251' : charset;
+  try {
+    return new TextDecoder(label).decode(bytes);
+  } catch {
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+}
+
 export async function fetchFeed(source, { timeoutMs = 15000, fetchImpl = fetch } = {}) {
   const res = await fetchImpl(source.url, { signal: AbortSignal.timeout(timeoutMs), headers: { 'user-agent': 'studio-news/0.1' } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (typeof res.arrayBuffer === 'function') {
+    const buf = new Uint8Array(await res.arrayBuffer());
+    return parseFeed(decodeBuffer(buf, res.headers?.get?.('content-type') ?? ''), source);
+  }
   return parseFeed(await res.text(), source);
 }
 

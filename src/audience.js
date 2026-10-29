@@ -12,6 +12,38 @@ const rx = (p) => {
 const hit = (text, list = []) => list.some((p) => rx(p).test(text));
 
 /**
+ * «Шок» — насколько новость цепляет: класс из profile.shock (вес + редкость триггера),
+ * масштаб (числа/жертвы) и подтверждение независимыми источниками. Без подтверждения
+ * (2+ источника или ведущая лента) шок не начисляется: слух не должен взрывать ленту.
+ * Чистая функция. Возвращает { points, reasons[], classes[], group, confirmed }.
+ */
+export function shockScore(event, profile = DEFAULT_AUDIENCE) {
+  const shock = profile.shock;
+  if (!shock?.classes?.length) return { points: 0, reasons: [], classes: [], group: null, confirmed: false };
+  const text = norm(event.title);
+  const hits = shock.classes.filter((c) => hit(text, c.triggers)).sort((a, b) => b.weight - a.weight);
+  if (!hits.length) return { points: 0, reasons: [], classes: [], group: null, confirmed: false };
+  const [top] = hits;
+  const confirmed = (event.independentSources ?? 0) >= 2 || !!event.authority;
+  if (!confirmed) {
+    return { points: 0, reasons: [`шок: «${top.name}» без подтверждения → 0`], classes: hits.map((c) => c.name), group: top.group, confirmed: false };
+  }
+  const reasons = [`шок: «${top.name}» → ${top.weight}`];
+  let points = top.weight;
+  const rarity = Math.max(...hits.map((c) => c.rarity ?? 0.5));
+  const rare = Math.round((shock.rare_bonus ?? 0) * rarity);
+  if (rare) { points += rare; reasons.push(`шок: редкость слова-триггера ${rarity} → ${rare}`); }
+  if (hit(text, shock.scale_triggers ?? [])) {
+    points += shock.scale_bonus ?? 0;
+    reasons.push(`шок: масштаб → ${shock.scale_bonus ?? 0}`);
+  }
+  points += shock.confirmed_bonus ?? 0;
+  reasons.push(`шок: подтверждено источниками → ${shock.confirmed_bonus ?? 0}`);
+  points = Math.min(points, shock.max_points ?? 40);
+  return { points, reasons, classes: hits.map((c) => c.name), group: top.group, confirmed: true };
+}
+
+/**
  * Релевантность аудитории по профилю. Чистая функция.
  * event: { title, summary?, ru? } — ru: есть русскоязычный источник (иначе по кириллице в заголовке).
  * Возвращает { points, topic, category, reasons[] }.

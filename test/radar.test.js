@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pollOnce, runRadar, parseArgs } from '../src/radar.js';
-import { fetchFeed } from '../src/collect.js';
+import { fetchFeed, decodeBuffer } from '../src/collect.js';
 import { openStore } from '../src/store.js';
 
 const item = (source, n, published = '2026-10-28T10:00:00.000Z') => ({ id: `${source}:${n}`, title: `Заголовок ${n}`, summary: '', link: `https://x/${source}/${n}`, source, published });
@@ -66,6 +66,14 @@ test('без ошибок журнал не создаётся', async () => {
   await pollOnce([{ id: 'a' }], { store: openStore(':memory:'), loader: async () => [item('a', 1)], logPath: log });
   assert.equal(existsSync(log), false);
   rmSync(dir, { recursive: true });
+});
+
+test('windows-1251: заголовок charset и XML-объявление декодируются', () => {
+  const hello = Buffer.from([0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2]); // «Привет» в cp1251
+  assert.equal(decodeBuffer(hello, 'application/xml; charset=cp1251'), 'Привет');
+  const xml = Buffer.concat([Buffer.from('<?xml version="1.0" encoding="windows-1251"?>'), hello]);
+  assert.equal(decodeBuffer(xml, 'application/xml').slice(-6), 'Привет');
+  assert.equal(decodeBuffer(Buffer.from('Привет', 'utf8'), 'application/xml'), 'Привет');
 });
 
 test('разбор фикстуры RSS через fetchFeed с подменой сети', async () => {

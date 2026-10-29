@@ -1,10 +1,37 @@
 {
-  "_comment": "Профиль массовой русскоязычной аудитории; правится без кода. Триггеры — регулярные выражения по заголовку (нижний регистр, ё→е), совпадение с НАЧАЛА слова: «удар» ловит «ударили». Конец слова закрывайте (?![\\p{L}]). weight — очки темы (берётся сильнейшая тема + extra_topic за каждую следующую, не больше extra_cap). category_weights — очки категории события (по теме, иначе по ленте). ru_bonus — русскоязычный источник + тема из профиля. penalties: any — любое слово, all — все группы, unless — исключения; очки вычитаются.",
+  "_comment": "Профиль массовой русскоязычной аудитории; правится без кода. Триггеры — регулярные выражения по заголовку (нижний регистр, ё→е), совпадение с НАЧАЛА слова: «удар» ловит «ударили». Конец слова закрывайте (?![\\p{L}]). weight — очки темы (берётся сильнейшая тема + extra_topic за каждую следующую, не больше extra_cap). category_weights — очки категории события (по теме, иначе по ленте). ru_bonus — русскоязычный источник + тема из профиля. penalties: any — любое слово, all — все группы, unless — исключения; очки вычитаются. shock — шоковые классы «ничего себе»: weight, rarity (0..1 — редкость слова-триггера), group (группа разнообразия); очки шока — только у подтверждённого события (2+ источника или ведущая лента), плюс масштаб и бонус подтверждения, не больше max_points.",
   "ru_bonus": 8,
   "ru_bonus_min_weight": 10,
   "extra_topic": 3,
   "extra_cap": 9,
   "category_weights": { "war": 8, "russia": 6, "economy": 5, "accidents": 5, "society": 2, "celebrity": 3, "sport": 2, "world": 0, "science": 0, "tech": 0 },
+  "shock": {
+    "max_points": 30,
+    "rare_bonus": 6,
+    "scale_bonus": 8,
+    "confirmed_bonus": 5,
+    "scale_triggers": ["десятк", "сотн", "тысяч", "миллион", "миллиард", "hundreds", "thousands", "millions", "billions", "dozens", "\\b\\d{2,}\\b"],
+    "classes": [
+      { "name": "Масштаб потерь", "group": "мир и ЧП", "weight": 26, "rarity": 0.8,
+        "triggers": ["погиб", "погибш", "жертв", "массов\\w* гибел", "десятки погибших", "сотни погибших", "killed", "dead(?![\\p{L}])", "death toll", "mass casualties", "casualties"] },
+      { "name": "Шок-преступления", "group": "мир и ЧП", "weight": 26, "rarity": 1,
+        "triggers": ["изнасил", "убит\\w* реб", "убийств\\w* реб", "маньяк", "серийн\\w* убийц", "похитил\\w* реб", "rape", "raped", "murdered child", "child killed", "serial killer", "pedophile", "child abuse"] },
+      { "name": "Катастрофы и стихия", "group": "мир и ЧП", "weight": 22, "rarity": 0.6,
+        "triggers": ["землетряс", "цунами", "ураган", "тайфун", "наводнен", "авиакатастроф", "крушен", "извержен", "лесн\\w* пожар", "earthquake", "tsunami", "hurricane", "typhoon", "flood", "plane crash", "eruption", "wildfire", "catastroph"] },
+      { "name": "Геополитические эскалации", "group": "политика/война", "weight": 24, "rarity": 0.9,
+        "triggers": ["ормуз", "пролив", "блокад", "ядерн", "ракетн\\w* удар", "иран", "тайвань", "hormuz", "strait", "blockade", "nuclear", "missile strike", "iran", "taiwan"] },
+      { "name": "Наука: премии и открытия", "group": "наука", "weight": 28, "rarity": 0.9,
+        "triggers": ["нобелевск", "nobel", "преми[яи]", "prize", "впервые в истории", "ученые обнаружил", "ученые открыл", "прорыв", "breakthrough", "космос", "телескоп", "марс", "mars", "telescope", "discover"] },
+      { "name": "Технологии и ИИ", "group": "технологии и ИИ", "weight": 18, "rarity": 0.7,
+        "triggers": ["openai", "anthropic", "google", "nvidia", "сбой", "остановил", "кончил\\w* токен", "взлом", "утечк", "запрет", "миллиард", "hack", "hacked", "outage", "leak", "banned", "billion", "token"] },
+      { "name": "Экономика-шок", "group": "экономика", "weight": 18, "rarity": 0.7,
+        "triggers": ["обвал", "дефолт", "рекорд\\w* курс", "налог", "crash", "default", "record low", "record high", "market crash", "tax"] },
+      { "name": "Рекорды и аномалии", "group": "мир и ЧП", "weight": 14, "rarity": 0.8,
+        "triggers": ["самый большой", "самый высок", "самая больш", "самый стар", "рекорд", "впервые", "уникальн", "largest", "record", "first ever", "first-ever", "unprecedented", "unique"] },
+      { "name": "Знаменитости", "group": "культура/спорт/знаменитости", "weight": 22, "rarity": 0.5,
+        "triggers": ["умер(ла|ли|ло|ший|шая)?(?![\\p{L}])", "скончал", "арест", "скандал", "смерть", "death", "arrest", "scandal", "died", "dead(?![\\p{L}])"] }
+    ]
+  },
   "topics": [
     { "name": "Война и Украина", "category": "war", "weight": 30,
       "triggers": ["украин", "ukrain", "киев", "киевск", "kyiv", "kiev", "зеленск", "zelensk", "обстрел", "shelling", "ракет", "missile", "дрон", "беспилотник", "\\bdrones?(?![\\p{L}])", "фронт", "front ?line", "наступлен", "offensive", "всу(?![\\p{L}])", "харьков", "одесс", "донбасс", "донецк", "херсон", "запорож", "курск", "белгород", "сво(?![\\p{L}])", "спецопераци", "перемири", "ceasefire", "ударил", "удар(ы|ов|ом|ах)?(?![\\p{L}])", "strike", "пво(?![\\p{L}])", "war(?![\\p{L}])", "войн", "минобороны", "пленных", "обмен пленн"] },
@@ -23,6 +50,21 @@
     { "name": "выборы малых стран", "points": 35,
       "all": [["выбор", "election", "референдум", "голосован", "ballot"], ["колумб", "боливи", "перу(?![\\p{L}])", "чили(?![\\p{L}])", "эквадор", "парагва", "уругва", "венесуэл", "гондурас", "гватемал", "коста-рик", "панам", "ямайк", "кени", "нигери", "ган(а|ы|е)(?![\\p{L}])", "замби", "малави", "танзани", "уганд", "камерун", "сенегал", "нигер(?![\\p{L}])", "бангладеш", "непал", "шри-ланк", "мальдив", "монголи", "фиджи", "самоа", "исланди", "мальт", "кипр", "эстони", "латви", "литв", "colombia", "bolivia", "peru(?![\\p{L}])", "chile(?![\\p{L}])", "ecuador", "paraguay", "uruguay", "honduras", "guatemala", "kenya", "nigeria", "ghana", "zambia", "malawi", "tanzania", "uganda", "cameroon", "senegal", "bangladesh", "nepal", "sri lanka", "maldives", "mongolia", "fiji", "iceland", "malta", "cyprus", "estonia", "latvia", "lithuania"]],
       "unless": ["росси", "russia", "украин", "ukrain", "путин", "трамп", "trump"] },
-    { "name": "обзор и реклама", "points": 30, "any": ["обзор", "\\breview", "скидк", "промокод", "распродаж", "\\bdeals?(?![\\p{L}])", "discount", "\\bsale(?![\\p{L}])", "sponsored", "гороскоп", "рецепт", "как выбрать", "лучшие\\s+\\d+"] }
+    { "name": "обзор и реклама", "points": 30, "any": ["обзор", "\\breview", "скидк", "промокод", "распродаж", "\\bdeals?(?![\\p{L}])", "discount", "\\bsale(?![\\p{L}])", "sponsored", "гороскоп", "рецепт", "как выбрать", "лучшие\\s+\\d+"] },
+    { "name": "корпоративная отчётность", "points": 25,
+      "any": ["отчет", "квартальн", "выручк", "прибыл(ь|и|ью)", "ebitda", "earnings", "revenue", "quarterly", "profit", "guidance"],
+      "unless": ["обвал", "дефолт", "рекорд", "взлом", "утечк", "запрет", "миллиард", "crash", "default", "record", "hack", "leak", "banned", "billion"] },
+    { "name": "рутинное заседание", "points": 20,
+      "any": ["заседан", "сесси", "совещан", "session", "meeting"],
+      "unless": ["экстрен", "срочн", "внеочередн", "ставк", "чп", "emergency", "rate", "crisis"] },
+    { "name": "погода", "points": 20,
+      "any": ["погод", "weather", "прогноз погод"],
+      "unless": ["ураган", "тайфун", "цунами", "наводнен", "катастроф", "шторм", "hurricane", "typhoon", "tsunami", "flood", "disaster", "storm"] },
+    { "name": "местная зарубежная новость", "points": 20,
+      "all": [
+        ["мэр", "губернатор", "полици", "шериф", "судь", "пожарн", "коммунальн", "mayor", "sheriff", "police", "city council"],
+        ["сша", "великобритани", "франци", "германи", "итали", "испани", "польш", "турци", "бразили", "аргентин", "мексик", "инди", "китай", "япони", "коре", "австрали", "канад", "usa", "uk(?![\\p{L}])", "britain", "france", "germany", "italy", "spain", "poland", "turkey", "brazil", "argentina", "mexico", "india", "china", "japan", "korea", "australia", "canada"]
+      ],
+      "unless": ["погиб", "жертв", "массов", "рекорд", "катастроф", "обвал", "killed", "dead", "casualties", "record", "disaster", "earthquake", "hurricane", "flood", "wildfire", "shooting", "attack", "explosion"] }
   ]
 }

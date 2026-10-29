@@ -148,11 +148,15 @@ test('gate: плохие посты отклоняются с причиной',
 });
 
 test('gate: все издания из sources.json запрещены', async () => {
-  // ленты массовой аудитории (28.10) в OUTLETS пока не внесены: gate вне задачи, вопрос владельцу
-  const PENDING = ['tass', 'ria', 'lenta', 'rbc', 'meduza', 'pravda-ua', 'mediazona', 'svoboda', 'currenttime', 'fontanka', 'sportsru'];
-  for (const s of (await loadSources()).filter((x) => !PENDING.includes(x.id))) {
+  for (const s of await loadSources()) {
     const r = gate({ title: 'Новость', body: `Как заявили в ${s.name}, всё спокойно.` });
     assert.equal(r.ok, false, s.name);
+  }
+});
+
+test('gate: названия лент массовой аудитории запрещены', () => {
+  for (const name of ['ТАСС', 'Медуза', 'РБК', 'Интерфакс', 'Коммерсантъ', 'Газета.ру', 'Новая газета', 'Reuters', 'The Verge', 'Wired', 'Bloomberg', 'Reddit']) {
+    assert.equal(gate({ title: 'Новость', body: `Как сообщили в ${name}, всё спокойно.` }).ok, false, name);
   }
 });
 

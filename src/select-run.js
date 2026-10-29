@@ -3,6 +3,7 @@ import { cluster } from './cluster.js';
 import { loadSources } from './collect.js';
 import { decide, clusterId, firstSeenOf, eventMeta, sourceMetaOf } from './issue.js';
 import { DEFAULT_CONFIG, isBreaking } from './score.js';
+import { CATEGORY_SECTION, POLITICS, WORLD_EMERGENCY, pickDiverse, peakOf } from './diversity.js';
 import { openStore, DEFAULT_DB } from './store.js';
 
 /** Статус по решению decide: отобрано / отклонено (ворота) / новое (ниже порога, один источник — может подрасти). */
@@ -19,23 +20,39 @@ export function ownerDay(firstSeen, tzHours = 7) {
 }
 
 /**
- * Топ дня: события с оценкой ≥ min (кроме отклонённых воротами), лучшие perDay за календарный день.
- * events: [{ id, score, first_seen, status }]. Возвращает Set id.
+ * Топ дня: события с оценкой ≥ min (кроме отклонённых воротами), до perDay за календарный день,
+ * с миксом: не больше perGroup одной группы и минимум minOutside вне политики, если такое есть.
+ * events: [{ id, score, peak_score, section, category, first_seen, status }]. Возвращает Set id.
  */
-export function topOfDay(events, { min = 40, perDay = 5, tzHours = 7 } = {}) {
+export function topOfDay(events, {
+  min = 40, perDay = 7, tzHours = 7, perGroup = 2, minOutside = 3, politics = POLITICS,
+} = {}) {
   const byDay = new Map();
   for (const e of events) {
     const day = ownerDay(e.first_seen, tzHours);
-    if (!day || e.status === 'отклонено' || !(e.score >= min)) continue;
+    if (!day || e.status === 'отклонено' || !(peakOf(e) >= min)) continue;
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day).push(e);
   }
   const top = new Set();
   for (const list of byDay.values()) {
-    list.sort((a, b) => b.score - a.score || (a.first_seen < b.first_seen ? -1 : a.first_seen > b.first_seen ? 1 : 0) || (a.id < b.id ? -1 : 1));
-    list.slice(0, perDay).forEach((e) => top.add(e.id));
+    for (const e of pickDiverse(list, { limit: perDay, perGroup, minOutside, minScore: min, politics })) top.add(e.id);
   }
   return top;
+}
+
+/**
+ * По одной последней записи на издателя (groups сводит ленты одного издателя).
+ * event_sources копит ссылки за все прогоны, поэтому для «срочного» нельзя считать их все.
+ */
+export function latestPerPublisher(sources, groups = {}) {
+  const latest = new Map();
+  for (const s of sources) {
+    const key = groups[s.source] ?? s.source;
+    const prev = latest.get(key);
+    if (!prev || String(s.published ?? '') > String(prev.published ?? '')) latest.set(key, s);
+  }
+  return [...latest.values()];
 }
 
 /**
@@ -64,12 +81,18 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
     const srcCat = eventMeta(c, sourceMeta).category;
     // лента науки/техники/космоса/медицины держит категорию ленты; остальным — категория темы аудитории
     store.setCategory(r.id, ['science', 'space', 'health', 'tech'].includes(srcCat) ? srcCat : d.sc.audienceCategory ?? srcCat);
-    if (isBreaking(d.sc.score, c.sources, { now: now.getTime(), config: cfg })) {
-      store.setBreaking(r.id);
-      out.breaking++;
-    }
+    // группа разнообразия: шоковый класс, затем тема аудитории, затем категория ленты
+    // (у общих ru-лент категория russia — она не должна перебивать тему «экономика», «наука» и т. п.)
+    const section = d.sc.shockGroup ?? CATEGORY_SECTION[d.sc.audienceCategory] ?? CATEGORY_SECTION[srcCat] ?? WORLD_EMERGENCY;
+    store.setSection(r.id, section);
     out.events++;
     let [status, reason] = selectStatus(c, d);
+    // высокий пик не теряем из-за старения текущей оценки: топ и дайджест считают по peak_score
+    const peak = store.get(r.id)?.peak_score ?? 0;
+    if (status === 'отклонено' && d.gate.ok && peak >= (cfg.thresholds?.publish ?? 40)) {
+      status = 'новое';
+      reason = `оценка снизилась до ${d.sc.score}, пик ${peak}`;
+    }
     if (r.status === 'выпущено' || store.hasDraft(r.id)) {
       status = r.status; // уже выпущено/с черновиком: статус не сбрасываем
       reason = store.get(r.id).status_reason;
@@ -80,12 +103,55 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
     else if (status === 'отклонено') out.rejected++;
     else if (status === 'новое') out.fresh++;
   }
-  // лента владельца: топ дня пересчитываем по всем событиям тех суток, которых коснулись
   const tz = cfg.owner_feed_tz_hours ?? 7;
+  const div = cfg.diversity ?? {};
+  const perGroup = div.per_group ?? 2;
+  const minOutside = div.min_outside_politics ?? 3;
+  const politics = div.politics ?? POLITICS;
   const days = new Set([...seen].map((id) => ownerDay(store.get(id).first_seen, tz)).filter(Boolean));
-  const scope = store.list().filter((e) => days.has(ownerDay(e.first_seen, tz)));
-  const top = topOfDay(scope, { min: cfg.owner_feed_min ?? 40, perDay: cfg.owner_feed_top_per_day ?? 5, tzHours: tz });
-  store.setTopOfDay(top, scope.map((e) => e.id));
+
+  // «Отобрано» 15–30 в сутки: лишнее сверх дневного потолка уходит в «отклонено» по пиковой оценке
+  let all = store.list();
+  const maxSelected = cfg.daily_selected_max ?? 0;
+  if (maxSelected > 0) {
+    let demoted = 0;
+    for (const day of days) {
+      const selected = all.filter((e) => ownerDay(e.first_seen, tz) === day && e.status === 'отобрано' && !store.hasDraft(e.id));
+      if (selected.length <= maxSelected) continue;
+      const sorted = [...selected].sort((a, b) => peakOf(b) - peakOf(a) || String(a.first_seen ?? '').localeCompare(String(b.first_seen ?? '')) || String(a.id).localeCompare(String(b.id)));
+      for (const e of sorted.slice(maxSelected)) {
+        store.setStatus(e.id, 'отклонено', `дневной лимит ${maxSelected}`, stamp);
+        demoted++;
+      }
+    }
+    out.selected -= demoted;
+    out.rejected += demoted;
+  }
+  all = store.list();
+  const inDays = all.filter((e) => days.has(ownerDay(e.first_seen, tz)));
+
+  // Срочное: то же правило микса — до per_day за сутки, не больше per_group одной группы
+  const minBreakingSources = cfg.breaking?.min_sources ?? 2;
+  const breaking = pickDiverse(
+    inDays.filter((e) => {
+      if (e.status === 'отклонено' || Number(e.independent_sources ?? 0) < minBreakingSources) return false;
+      // в базе копятся все ссылки за все прогоны: считаем по одной последней на издателя
+      const publishers = latestPerPublisher(e.sources, groups);
+      return isBreaking(peakOf(e), publishers, { now: now.getTime(), config: cfg });
+    }),
+    { limit: cfg.breaking?.per_day ?? 7, perGroup: cfg.breaking?.per_group ?? perGroup, minOutside, minScore: cfg.breaking?.min_score ?? 70, politics },
+  );
+  store.setBreakingFlags(breaking.map((e) => e.id), inDays.map((e) => e.id));
+  out.breaking = breaking.length;
+
+  // «Топ дня» — только текущие сутки UTC+7; пометки прошлых дней сбрасываются (была ошибка «42 топа»)
+  const nowDay = ownerDay(now.toISOString(), tz);
+  const dayEvents = nowDay ? all.filter((e) => ownerDay(e.first_seen, tz) === nowDay) : [];
+  const top = topOfDay(dayEvents, {
+    min: cfg.owner_feed_min ?? 40, perDay: cfg.owner_feed_top_per_day ?? 7, tzHours: tz,
+    perGroup, minOutside, politics,
+  });
+  store.setTopOfDay(top, all.map((e) => e.id));
   out.top = top.size;
   return out;
 }

@@ -74,7 +74,7 @@ test('eventMeta: категория по большинству лент кла�
 });
 
 // --- топ дня ---
-const T = (id, score, iso, status = 'отобрано') => ({ id, score, first_seen: iso, status });
+const T = (id, score, iso, status = 'отобрано', category = 'accidents') => ({ id, score, first_seen: iso, status, category });
 
 test('ownerDay: календарный день по UTC+7', () => {
   assert.equal(ownerDay('2026-10-28T16:59:00Z'), '2026-10-28');
@@ -84,13 +84,15 @@ test('ownerDay: календарный день по UTC+7', () => {
 
 test('topOfDay: лучшие N за день выше порога, дни независимы, отклонённые не в счёт', () => {
   const evs = [
-    T('a', 70, '2026-10-28T01:00:00Z'), T('b', 65, '2026-10-28T02:00:00Z'), T('c', 50, '2026-10-28T03:00:00Z'),
-    T('d', 45, '2026-10-28T04:00:00Z'), T('low', 39, '2026-10-28T05:00:00Z'), T('rej', 90, '2026-10-28T05:00:00Z', 'отклонено'),
-    T('e', 41, '2026-10-28T06:00:00Z'),
-    T('next', 42, '2026-10-28T18:00:00Z'), // уже 29-е по UTC+7
+    T('a', 70, '2026-10-28T01:00:00Z', 'отобрано', 'war'), T('b', 65, '2026-10-28T02:00:00Z', 'отобрано', 'science'),
+    T('c', 50, '2026-10-28T03:00:00Z', 'отобрано', 'tech'), T('d', 45, '2026-10-28T04:00:00Z', 'отобрано', 'economy'),
+    T('low', 39, '2026-10-28T05:00:00Z'), T('rej', 90, '2026-10-28T05:00:00Z', 'отклонено'),
+    T('e', 41, '2026-10-28T06:00:00Z', 'отобрано', 'sport'),
+    T('next', 42, '2026-10-28T18:00:00Z', 'отобрано', 'tech'), // уже 29-е по UTC+7
   ];
+  // минимум 3 вне политики: 'a' (политика) вытеснено 'd' (экономика)
   const top = topOfDay(evs, { min: 40, perDay: 3, tzHours: 7 });
-  assert.deepEqual([...top].sort(), ['a', 'b', 'c', 'next']);
+  assert.deepEqual([...top].sort(), ['b', 'c', 'd', 'next']);
 });
 
 test('select: top_of_day и категория в базе, идемпотентно', () => {
@@ -141,7 +143,7 @@ test('sources.json: формат лент', () => {
 test('score.config.json: пороги ленты владельца и веса категорий', () => {
   const c = JSON.parse(readFileSync(new URL('../src/score.config.json', import.meta.url), 'utf8'));
   assert.equal(c.owner_feed_min, 40);
-  assert.equal(c.owner_feed_top_per_day, 5);
+  assert.equal(c.owner_feed_top_per_day, 7);
   for (const k of ['world', 'science', 'tech', 'space', 'health', 'economy']) assert.equal(typeof c.category_weights[k], 'number');
   assert.ok(c.wow.markers.length && c.wow.stop.length);
 });

@@ -2,7 +2,7 @@
   "_comment": "Стартовые значения из docs/methodology/01-selection.md; калибруются по замеру радара без правки кода.",
   "thresholds": { "publish": 40, "urgent": 70 },
   "freshness": [ { "maxMinutes": 15, "points": 30 }, { "maxMinutes": 60, "points": 20 }, { "maxMinutes": 180, "points": 10 } ],
-  "breaking": { "min_score": 70, "min_sources": 2, "window_minutes": 60 },
+  "breaking": { "min_score": 70, "min_sources": 2, "window_minutes": 60, "per_day": 7, "per_group": 2 },
   "sources": { "1": 5, "2": 15, "3": 25 },
   "topic": { "listed_threat": 25, "listed": 15, "notable": 5 },
   "growth": { "windowMinutes": 30, "tiers": [ { "min": 10, "points": 20 }, { "min": 4, "points": 10 } ] },
@@ -15,8 +15,12 @@
     "Резкие движения рынков": ["обвал", "биржа", "биржи", "нефть", "нефти", "биткоин", "рубл", "stocks", "oil price", "bitcoin", "markets", "currency"]
   },
   "owner_feed_min": 40,
-  "owner_feed_top_per_day": 5,
+  "owner_feed_top_per_day": 7,
   "owner_feed_tz_hours": 7,
+  "diversity": { "per_group": 2, "min_outside_politics": 3, "politics": "политика/война" },
+  "daily_selected_max": 30,
+  "signals_max": 50,
+  "targets": { "high_share": 0.1, "high_score": 60, "selected_per_day": [15, 30] },
   "category_weights": { "world": 0, "science": 10, "tech": 8, "space": 10, "health": 8, "economy": 4 },
   "wow": {
     "points": 30,

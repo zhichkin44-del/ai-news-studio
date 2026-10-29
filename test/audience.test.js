@@ -58,7 +58,8 @@ test('профиль: сильнейшая тема, русскоязычный 
   assert.equal(p('Обстрел Харькова', true).category, 'war');
   assert.equal(p('Shelling of Kharkiv, Ukraine says', false).topic, 'Война и Украина');
   assert.equal(p('Обстрел Харькова', true).points - p('Обстрел Харькова', false).points, DEFAULT_AUDIENCE.ru_bonus);
-  assert.equal(p('Погода в Перми', true).points, 0);
+  assert.equal(p('Открылась выставка кошек', true).points, 0);
+  assert.ok(p('Погода в Перми', true).points < 0, 'рутинная погода штрафуется');
   assert.ok(p('Выборы в Боливии', true).points < 0);
   assert.equal(p('Выборы в Госдуму: Путин проголосовал', true).points > 0, true, 'выборы в России/с Путиным не штрафуются');
 });
@@ -107,13 +108,14 @@ test('select: breaking=1 у подтверждённого свежего уда
 // --- digest ---
 test('digest: ночь 18:00→08:00 по UTC+7, до 7 лучших, поля id/title/score/category', () => {
   const store = openStore(':memory:');
-  const put = (id, title, score, firstSeen, status = 'отобрано') => {
+  const put = (id, title, score, firstSeen, status = 'отобрано', category = 'accidents') => {
     store.upsert({ id, title, firstSeen, independentSources: 2, score, reasons: [], needsOwner: false, sources: [{ source: 's', link: `https://x.test/${id}` }] }, firstSeen);
     store.setStatus(id, status);
-    store.setCategory(id, 'war');
+    store.setCategory(id, category);
   };
-  // ночь 27→28 окт по UTC+7 = 27.10 11:00Z … 28.10 01:00Z
-  for (let i = 0; i < 9; i++) put(`n${i}`, `ночное ${i}`, 50 + i, `2026-10-27T${String(12 + i).padStart(2, '0')}:00:00Z`);
+  // ночь 27→28 окт по UTC+7 = 27.10 11:00Z … 28.10 01:00Z; категории разные — квота 2 на группу
+  const cats = ['war', 'science', 'tech', 'economy'];
+  for (let i = 0; i < 9; i++) put(`n${i}`, `ночное ${i}`, 50 + i, `2026-10-27T${String(12 + i).padStart(2, '0')}:00:00Z`, 'отобрано', cats[i % cats.length]);
   put('day', 'дневное', 99, '2026-10-27T05:00:00Z'); // 12:00 по UTC+7 — вне окна
   put('late', 'после 08:00', 99, '2026-10-28T01:00:00Z'); // ровно 08:00 — вне окна
   put('rej', 'отклонённое', 98, '2026-10-27T15:00:00Z', 'отклонено');

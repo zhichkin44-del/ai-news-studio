@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cluster } from './select.js';
-import { score } from './score.js';
+import { score, DEFAULT_CONFIG } from './score.js';
 import { firstSeenOf } from './issue.js';
 import { loadSources } from './collect.js';
 import { openStore, DEFAULT_DB } from './store.js';
@@ -11,9 +11,15 @@ export const OUT_PATH = 'docs/eval/metrics-latest.json';
 export const FAST_MS = 5 * 60 * 1000;
 export const FRESH_MS = 6 * 3600 * 1000;
 export const HOT_SCORE = 40;
+export const HIGH_SCORE = 60;
 
 const round = (x, d = 3) => (x == null ? null : Math.round(x * 10 ** d) / 10 ** d);
 const share = (n, d) => (d ? round(n / d) : null);
+
+/** Доля событий с оценкой ≥ min (цель — не больше ~10 % всех: топ не должен раздуваться). */
+export function highShare(scores, min = HIGH_SCORE) {
+  return share(scores.filter((s) => s >= min).length, scores.length);
+}
 
 /** Перцентиль по ближайшему рангу; пустой набор — null. */
 export function percentile(values, p) {
@@ -49,10 +55,16 @@ export function computeMetrics(store, { now = new Date(), hours = 24, sources = 
 
   const clusters = items.length ? cluster(items, 0.4, groups) : [];
   const multi = clusters.filter((c) => c.sourceCount >= 2).length;
-  const hot = clusters.filter((c) => score(
-    { title: c.title, summary: c.items.map((i) => i.summary).join(' '), firstSeen: firstSeenOf(c), independentSources: c.sourceCount, times: c.items.map((i) => i.published) },
-    { now: now.getTime() },
-  ).score >= HOT_SCORE);
+  const scored = clusters.map((c) => ({
+    c,
+    score: score(
+      { title: c.title, summary: c.items.map((i) => i.summary).join(' '), firstSeen: firstSeenOf(c), independentSources: c.sourceCount, times: c.items.map((i) => i.published) },
+      { now: now.getTime() },
+    ).score,
+  }));
+  const hot = scored.filter((x) => x.score >= HOT_SCORE);
+  const high = scored.filter((x) => x.score >= HIGH_SCORE);
+  const highTarget = DEFAULT_CONFIG.targets?.high_share ?? null;
 
   const ids = [...new Set([...sources.map((s) => s.id), ...items.map((i) => i.source), ...polls.map((p) => p.source)])];
   const feeds = ids.map((id) => {
@@ -86,7 +98,10 @@ export function computeMetrics(store, { now = new Date(), hours = 24, sources = 
     latency: latencyStats(items),
     multi_source_share: share(multi, clusters.length),
     hot_events: hot.length,
-    hot_multi_source_share: share(hot.filter((c) => c.sourceCount >= 2).length, hot.length),
+    hot_multi_source_share: share(hot.filter((x) => x.c.sourceCount >= 2).length, hot.length),
+    high_events: high.length,
+    high_share: highShare(scored.map((x) => x.score)),
+    high_share_target: highTarget,
     duplicates_merged_share: share(items.length - clusters.length, items.length),
     unique_items_share: share(distinctLinks, items.length),
     problem_feeds: feeds.filter((f) => f.problem).map((f) => ({ source: f.source, problem: f.problem, errors: f.errors, fresh_6h: f.fresh_6h })),
@@ -103,6 +118,7 @@ export function formatMetrics(m) {
     `Записей: ${m.items}; событий (кластеров): ${m.events}`,
     `Задержка (first_seen − published, без первого опроса ленты): медиана ${sec(m.latency.median_sec)}, p90 ${sec(m.latency.p90_sec)}, не позже 5 мин: ${pct(m.latency.within_5min)} (замерено ${m.latency.measured})`,
     `Горячие события (оценка ≥ ${HOT_SCORE}): ${m.hot_events}; из них с 2+ независимыми источниками: ${pct(m.hot_multi_source_share)}`,
+    `Оценка ≥ ${HIGH_SCORE}: ${m.high_events} — доля ${pct(m.high_share)} (цель ≤ ${m.high_share_target == null ? '—' : pct(m.high_share_target)})`,
     `Все события с 2+ независимыми источниками (для справки): ${pct(m.multi_source_share)}`,
     `Дублей склеено в кластеры: ${pct(m.duplicates_merged_share)}; записей без повторов: ${pct(m.unique_items_share)}`,
     '',

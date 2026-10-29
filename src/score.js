@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { audienceScore, DEFAULT_AUDIENCE } from './audience.js';
+import { audienceScore, shockScore, DEFAULT_AUDIENCE } from './audience.js';
 
 export const DEFAULT_CONFIG = JSON.parse(readFileSync(new URL('./score.config.json', import.meta.url), 'utf8'));
 
@@ -68,13 +68,25 @@ export function score(event, { now = Date.now(), config = DEFAULT_CONFIG, audien
   const aud = audience ? audienceScore(event, audience) : { points: 0, reasons: [], category: null };
   reasons.push(...aud.reasons);
 
+  // «шок»: масштаб, редкость слова-триггера и число независимых источников
+  const shock = audience ? shockScore({ ...event, independentSources: n }, audience) : { points: 0, reasons: [], group: null };
+  reasons.push(...shock.reasons);
+
+  // «Сигналы» (категория + аудитория + шок) считаются один раз: иначе один и тот же заголовок
+  // трижды поднимает оценку (wow «discover» + аудитория + шок) и топ упирается в 100.
+  const signals = extra + aud.points + shock.points;
+  const signalMax = config.signals_max ?? 50;
+  const capped = Math.min(signalMax, signals);
+  if (signals > signalMax) reasons.push(`сигналы ${signals} ограничены ${signalMax}`);
+
   const acute = matches(text, config.acute);
   const single = n < 2;
   if (single) reasons.push('одно-источниковое: только с одобрения владельца');
   if (acute) reasons.push('острое: только с одобрения владельца');
   return {
-    score: Math.max(0, fr + srcPts + topicPts + growthPts + extra + aud.points),
+    score: Math.min(100, Math.max(0, fr + srcPts + topicPts + growthPts + capped)),
     reasons, needsOwner: single || acute, single, acute, topic, audience: aud.points, audienceCategory: aud.category,
+    shock: shock.points, shockGroup: shock.group,
   };
 }
 
