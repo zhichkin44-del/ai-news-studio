@@ -110,7 +110,7 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
   const perGroup = div.per_group ?? 2;
   const minOutside = div.min_outside_politics ?? 3;
   const politics = div.politics ?? POLITICS;
-  const days = new Set([...seen].map((id) => ownerDay(store.get(id).first_seen, tz)).filter(Boolean));
+  const days = new Set([...seen].map((id) => ownerDay(store.get(id)?.first_seen, tz)).filter(Boolean));
 
   // «Отобрано» 15–30 в сутки: лишнее сверх дневного потолка уходит в «отклонено» по пиковой оценке
   let all = store.list();
