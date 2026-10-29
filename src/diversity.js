@@ -38,35 +38,60 @@ export const peakOf = (event) => Number(event.peak_score ?? event.score ?? 0);
 const tie = (a, b) => String(a.first_seen ?? '').localeCompare(String(b.first_seen ?? '')) || String(a.id ?? '').localeCompare(String(b.id ?? ''));
 const ranked = (events, scoreOf) => [...events].sort((a, b) => scoreOf(b) - scoreOf(a) || tie(a, b));
 
+/** Ключи потолков, отдельные от секции: спорт и шоу-бизнес живут в одной секции, но режутся порознь. */
+export const SPORT = 'спорт';
+export const SHOWBIZ = 'шоу-бизнес';
+const ceilingKey = (e) => (e.category === 'sport' ? SPORT : e.category === 'celebrity' ? SHOWBIZ : sectionOf(e));
+
+/**
+ * Потолки на группу в топе дня (score.config.json → diversity.ceilings), strict-режим:
+ * { sport, showbiz, topic, politics, sport_sensation: [regex-маркеры] }. Спорт без маркера
+ * сенсации (рекорд, скандал, финал, сверхсумма) в топ не идёт вовсе.
+ */
+export function ceilingRules(ceilings, politics = POLITICS) {
+  if (!ceilings) return null;
+  const sens = (ceilings.sport_sensation ?? []).map((m) => new RegExp(m, 'iu'));
+  const caps = { [SPORT]: ceilings.sport ?? 1, [SHOWBIZ]: ceilings.showbiz ?? 1, [politics]: ceilings.politics ?? 3 };
+  const topic = ceilings.topic ?? 2;
+  return {
+    capOf: (key) => caps[key] ?? topic,
+    allowed: (e) => e.category !== 'sport' || sens.some((re) => re.test(`${e.title ?? ''} ${e.summary ?? ''}`)),
+  };
+}
+
 /**
  * Микс из `limit` событий: не больше `perGroup` одной группы; если есть событие вне
  * политики с оценкой ≥ minScore — минимум `minOutside` вне политики (политику при
  * необходимости вытесняем). Возвращает выбранные события в порядке убывания оценки.
+ * С `ceilings` (strict) потолки по группам заменяют perGroup; свободные места остаются пустыми.
  */
 export function pickDiverse(events, {
-  limit = 7, perGroup = 2, minOutside = 3, minScore = 40, politics = POLITICS, scoreOf = peakOf, strict = false,
+  limit = 7, perGroup = 2, minOutside = 3, minScore = 40, politics = POLITICS, scoreOf = peakOf, strict = false, ceilings = null,
 } = {}) {
-  const list = ranked(events, scoreOf);
+  const rules = strict ? ceilingRules(ceilings, politics) : null;
+  const list = ranked(events, scoreOf).filter((e) => !rules || rules.allowed(e));
+  const keyOf = rules ? ceilingKey : sectionOf;
+  const capOf = rules ? rules.capOf : () => perGroup;
   const chosen = [];
   const counts = new Map();
   // жёсткая квота: политики не больше limit - minOutside, пустые места не добиваем войной
   const politicsCap = strict ? Math.max(0, limit - Math.min(minOutside, limit)) : Infinity;
   const take = (e) => {
     chosen.push(e);
-    const s = sectionOf(e);
+    const s = keyOf(e);
     counts.set(s, (counts.get(s) ?? 0) + 1);
   };
   const drop = (e) => {
     const i = chosen.indexOf(e);
     if (i < 0) return;
     chosen.splice(i, 1);
-    const s = sectionOf(e);
+    const s = keyOf(e);
     counts.set(s, counts.get(s) - 1);
   };
   for (const e of list) {
     if (chosen.length >= limit) break;
-    const s = sectionOf(e);
-    if ((counts.get(s) ?? 0) >= perGroup) continue;
+    const s = keyOf(e);
+    if ((counts.get(s) ?? 0) >= capOf(s)) continue;
     if (s === politics && (counts.get(s) ?? 0) >= politicsCap) continue;
     take(e);
   }
@@ -75,7 +100,7 @@ export function pickDiverse(events, {
   const hasOutside = list.some((e) => sectionOf(e) !== politics && scoreOf(e) >= minScore);
   if (hasOutside) {
     while (outside() < target) {
-      const candidate = list.find((e) => !chosen.includes(e) && sectionOf(e) !== politics && scoreOf(e) >= minScore && (counts.get(sectionOf(e)) ?? 0) < perGroup);
+      const candidate = list.find((e) => !chosen.includes(e) && sectionOf(e) !== politics && scoreOf(e) >= minScore && (counts.get(keyOf(e)) ?? 0) < capOf(keyOf(e)));
       if (!candidate) break;
       if (chosen.length >= limit) {
         const victim = [...chosen].reverse().find((e) => sectionOf(e) === politics);

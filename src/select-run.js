@@ -25,7 +25,7 @@ export function ownerDay(firstSeen, tzHours = 7) {
  * events: [{ id, score, peak_score, section, category, first_seen, status }]. Возвращает Set id.
  */
 export function topOfDay(events, {
-  min = 40, perDay = 7, tzHours = 7, perGroup = 2, minOutside = 3, politics = POLITICS, relax = 0,
+  min = 40, perDay = 7, tzHours = 7, perGroup = 2, minOutside = 3, politics = POLITICS, relax = 0, ceilings = null,
 } = {}) {
   const byDay = new Map();
   for (const e of events) {
@@ -38,7 +38,7 @@ export function topOfDay(events, {
   }
   const top = new Set();
   for (const list of byDay.values()) {
-    for (const e of pickDiverse(list, { limit: perDay, perGroup, minOutside, minScore: min, politics, strict: true })) top.add(e.id);
+    for (const e of pickDiverse(list, { limit: perDay, perGroup, minOutside, minScore: min, politics, strict: true, ceilings })) top.add(e.id);
   }
   return top;
 }
@@ -151,7 +151,7 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
   const dayEvents = nowDay ? all.filter((e) => ownerDay(e.first_seen, tz) === nowDay) : [];
   const top = topOfDay(dayEvents, {
     min: cfg.owner_feed_min ?? 40, perDay: cfg.owner_feed_top_per_day ?? 7, tzHours: tz,
-    perGroup, minOutside, politics, relax: div.relax_points ?? 0,
+    perGroup, minOutside, politics, relax: div.relax_points ?? 0, ceilings: div.ceilings,
   });
   store.setTopOfDay(top, all.map((e) => e.id));
   out.top = top.size;
