@@ -21,7 +21,7 @@ export class CardError extends Error {
   constructor(code, message) { super(message); this.name = 'CardError'; this.code = code; }
 }
 
-export const brandOf = (config = DEFAULT_CONFIG) => String(config?.brand ?? 'НИЧЕГО СЕБЕ');
+export const brandOf = (config = DEFAULT_CONFIG) => String(config?.brand ?? 'AI NEWS STUDIO');
 export const cardModeOf = (config = DEFAULT_CONFIG) => (['always', 'fallback', 'off'].includes(config?.card_mode) ? config.card_mode : 'fallback');
 
 // ───────── числа ─────────

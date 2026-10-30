@@ -66,7 +66,7 @@ test('ворота по тексту карточки: ссылки и изда�
   assert.equal(gateCard(cardModel({ text: 'Заголовок про выборы\n\nпо сообщению Reuters' })).ok, false);
   const html = cardHtml(cardModel({ text: 'Рынок упал на 7%\n\nИндекс снизился.' }));
   assert.match(html, /1080px/);
-  assert.match(html, /НИЧЕГО СЕБЕ/);
+  assert.match(html, /AI NEWS STUDIO/);
   assert.doesNotMatch(html.replace('http://www.w3.org/2000/svg', ''), /https?:/);
 });
 
