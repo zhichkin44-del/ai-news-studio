@@ -40,13 +40,13 @@ test('шоу-бизнес: не больше одного', () => {
   assert.deepEqual(run(evs), ['c1']);
 });
 
-test('тема: не больше двух; политика — до трёх', () => {
+test('тема: не больше двух; политика — не больше трети (2 из 7)', () => {
   const evs = [
     ...['a', 'b', 'c', 'd', 'e'].map((x, i) => E(x, 99 - i, 'war')),
     ...['t1', 't2', 't3', 't4'].map((x, i) => E(x, 70 - i, 'tech')),
   ];
   const ids = run(evs);
-  assert.equal(ids.filter((i) => 'abcde'.includes(i)).length, 3);
+  assert.equal(ids.filter((i) => 'abcde'.includes(i)).length, 2);
   assert.equal(ids.filter((i) => i.startsWith('t')).length, 2);
 });
 
@@ -56,7 +56,7 @@ test('нехватка сильных вне потолков: места ост
     E('c1', 88, 'celebrity'), E('c2', 87, 'celebrity'),
     E('p1', 86, 'war'), E('p2', 85, 'war'), E('p3', 84, 'war'), E('p4', 83, 'war'),
   ];
-  assert.deepEqual(run(evs).sort(), ['c1', 'p1', 'p2', 'p3', 's1']);
+  assert.deepEqual(run(evs).sort(), ['c1', 'p1', 'p2', 's1']);
 });
 
 test('без ceilings прежнее поведение: perGroup=2 для спорта', () => {

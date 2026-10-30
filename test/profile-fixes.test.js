@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { score } from '../src/score.js';
 import { audienceScore, shockScore } from '../src/audience.js';
 import { topOfDay } from '../src/select-run.js';
-import { pickDiverse, sectionFor, POLITICS, WORLD_EMERGENCY, SCIENCE } from '../src/diversity.js';
+import { pickDiverse, sameStory,sectionFor, POLITICS, WORLD_EMERGENCY, SCIENCE } from '../src/diversity.js';
 
 const json = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'));
 const aud = json('../src/audience.json');
@@ -97,10 +97,10 @@ test('шок-профиль: сбои ИИ, цены/курсы, аномали�
   assert.equal(g('Мужчина зарезал соседа в Туле').group, 'мир и ЧП');
 });
 
-test('правка 9: квота жёсткая — политики не больше 3 из 7, войной не добиваем', () => {
+test('правка 9: квота жёсткая — политики не больше трети (2 из 7), войной не добиваем', () => {
   const evs = Array.from({ length: 9 }, (_, i) => T(`p${i}`, 95 - i, 'war'));
   const top = topOfDay(evs, { min: 40, perDay: 7, perGroup: 7, minOutside: 4, politics: POLITICS });
-  assert.equal(top.size, 3);
+  assert.equal(top.size, 2);
 });
 
 test('правка 9: пониженный порог — вне политики берём события ниже 40, но не ниже 40-relax', () => {
@@ -109,10 +109,10 @@ test('правка 9: пониженный порог — вне политик�
     T('s', 36, 'science'), T('t', 33, 'tech'), T('e', 31, 'economy'), T('c', 35, 'sport'), T('low', 25, 'accidents'),
   ];
   const strictOnly = topOfDay(evs, { min: 40, perDay: 7, perGroup: 7, minOutside: 4, politics: POLITICS });
-  assert.equal(strictOnly.size, 3, 'без relax вне политики ничего нет — только 3 политики');
+  assert.equal(strictOnly.size, 2, 'без relax вне политики ничего нет — только 2 политики (треть)');
   const top = topOfDay(evs, { min: 40, perDay: 7, perGroup: 7, minOutside: 4, politics: POLITICS, relax: 10 });
   const picked = evs.filter((e) => top.has(e.id));
-  assert.equal(picked.filter((e) => e.category === 'war').length, 3);
+  assert.equal(picked.filter((e) => e.category === 'war').length, 2);
   assert.deepEqual(picked.filter((e) => e.category !== 'war').map((e) => e.id).sort(), ['c', 'e', 's', 't']);
   assert.ok(!top.has('low'));
 });
@@ -125,6 +125,28 @@ test('правка 9: сильные внеполитические событи
   const top = topOfDay(evs, { min: 40, perDay: 7, minOutside: 4, politics: POLITICS, relax: 10 });
   assert.equal(evs.filter((e) => top.has(e.id) && e.category === 'war').length, 2);
   assert.equal(top.size, 6);
+});
+
+test('pickDiverse: два события об одном (общая сущность + число) — берётся одно, место отдаётся другому', () => {
+  const ev = (id, score, title, category = 'accidents') => ({ id, title, category, score, peak_score: score, first_seen: '2026-10-29T01:00:00Z' });
+  const evs = [
+    ev('a', 90, 'Землетрясение магнитудой 7 в Японии: 12 погибших'),
+    ev('b', 85, 'В Японии произошло землетрясение, число жертв выросло до 12'),
+    ev('c', 60, 'Ураган накрыл Флориду', 'accidents'),
+    ev('d', 55, 'Новый чип удвоил скорость вычислений', 'tech'),
+  ];
+  const ids = pickDiverse(evs, { limit: 7, perGroup: 7, minOutside: 0, strict: true }).map((e) => e.id);
+  assert.deepEqual(ids, ['a', 'c', 'd']);
+  assert.equal(sameStory(evs[0], evs[2]), false);
+});
+
+test('pickDiverse: политика/война не больше трети (2 из 7) в strict', () => {
+  const evs = [
+    ...['a', 'b', 'c', 'd', 'e'].map((x, i) => T(x, 99 - i, 'war')),
+    T('s1', 70, 'science'), T('t1', 65, 'tech'), T('e1', 60, 'economy'), T('c1', 55, 'celebrity'),
+  ];
+  const got = pickDiverse(evs, { limit: 7, perGroup: 7, minOutside: 2, strict: true });
+  assert.equal(got.filter((e) => e.category === 'war').length, 2);
 });
 
 test('pickDiverse без strict сохраняет прежнее поведение (срочное)', () => {

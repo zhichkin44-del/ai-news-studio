@@ -1,3 +1,5 @@
+import { keys } from './cluster.js';
+
 /**
  * Группы разнообразия ленты (решение владельца 28.10): политика/война — не больше
  * двух событий в семёрке, остальные группы закрывают микс. Группа события берётся
@@ -60,13 +62,30 @@ export function ceilingRules(ceilings, politics = POLITICS) {
 }
 
 /**
+ * Один и тот же сюжет в разных формулировках: общее число (не год) и хотя бы одна общая
+ * сущность (основа слова ≥ 4 знаков), либо почти совпадающие наборы слов (Жаккар ≥ 0,6).
+ */
+export function sameStory(a, b) {
+  const ka = keys(a.title ?? '');
+  const kb = keys(b.title ?? '');
+  const nums = (k) => [...k.keys()].filter((t) => /^\d+$/.test(t) && !/^(19|20)\d\d$/.test(t));
+  const words = (k) => [...k.keys()].filter((t) => !/^\d+$/.test(t) && t.length >= 4);
+  const wa = words(ka);
+  const common = wa.filter((t) => kb.has(t)).length;
+  const sharedNum = nums(ka).some((t) => kb.has(t));
+  if (sharedNum && common >= 1) return true;
+  const wb = words(kb);
+  return common >= 3 && common / (wa.length + wb.length - common || 1) >= 0.6;
+}
+
+/**
  * Микс из `limit` событий: не больше `perGroup` одной группы; если есть событие вне
  * политики с оценкой ≥ minScore — минимум `minOutside` вне политики (политику при
  * необходимости вытесняем). Возвращает выбранные события в порядке убывания оценки.
  * С `ceilings` (strict) потолки по группам заменяют perGroup; свободные места остаются пустыми.
  */
 export function pickDiverse(events, {
-  limit = 7, perGroup = 2, minOutside = 3, minScore = 40, politics = POLITICS, scoreOf = peakOf, strict = false, ceilings = null,
+  limit = 7, perGroup = 2, minOutside = 3, minScore = 40, politics = POLITICS, scoreOf = peakOf, strict = false, ceilings = null, politicsShare = 1 / 3,
 } = {}) {
   const rules = strict ? ceilingRules(ceilings, politics) : null;
   const list = ranked(events, scoreOf).filter((e) => !rules || rules.allowed(e));
@@ -75,7 +94,8 @@ export function pickDiverse(events, {
   const chosen = [];
   const counts = new Map();
   // жёсткая квота: политики не больше limit - minOutside, пустые места не добиваем войной
-  const politicsCap = strict ? Math.max(0, limit - Math.min(minOutside, limit)) : Infinity;
+  // и не больше трети (политика/война одинаково в топе и дайджестах)
+  const politicsCap = strict ? Math.max(0, Math.min(limit - Math.min(minOutside, limit), Math.floor(limit * politicsShare))) : Infinity;
   const take = (e) => {
     chosen.push(e);
     const s = keyOf(e);
@@ -93,6 +113,7 @@ export function pickDiverse(events, {
     const s = keyOf(e);
     if ((counts.get(s) ?? 0) >= capOf(s)) continue;
     if (s === politics && (counts.get(s) ?? 0) >= politicsCap) continue;
+    if (chosen.some((c) => sameStory(c, e))) continue;
     take(e);
   }
   const outside = () => chosen.filter((e) => sectionOf(e) !== politics).length;
@@ -100,7 +121,7 @@ export function pickDiverse(events, {
   const hasOutside = list.some((e) => sectionOf(e) !== politics && scoreOf(e) >= minScore);
   if (hasOutside) {
     while (outside() < target) {
-      const candidate = list.find((e) => !chosen.includes(e) && sectionOf(e) !== politics && scoreOf(e) >= minScore && (counts.get(keyOf(e)) ?? 0) < capOf(keyOf(e)));
+      const candidate = list.find((e) => !chosen.includes(e) && !chosen.some((c) => sameStory(c, e)) && sectionOf(e) !== politics && scoreOf(e) >= minScore && (counts.get(keyOf(e)) ?? 0) < capOf(keyOf(e)));
       if (!candidate) break;
       if (chosen.length >= limit) {
         const victim = [...chosen].reverse().find((e) => sectionOf(e) === politics);

@@ -3,7 +3,7 @@
   "window_hours": 24,
   "min_history_hours": 6,
   "recent_minutes": 60,
-  "min_ratio": 5,
+  "min_ratio": 3,
   "min_recent": 3,
   "floor_per_hour": 0.25,
   "min_types": 2,

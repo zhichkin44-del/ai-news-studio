@@ -202,6 +202,28 @@ test('burst: СМИ + Reddit про одну тему (на разных язы�
   assert.equal(burstTitle(b, CFG), 'Нефть вынесло на пляжи Бразилии'); // из СМИ (не из Reddit); все три покрывают тему поровну — берётся самая ранняя
 });
 
+test('burst: порог x3 из конфига — нефть у берегов нескольких континентов (Reddit + Trends + СМИ) даёт всплеск, одиночный тренд — нет', () => {
+  assert.equal(BURST_CONFIG.min_ratio, 3);
+  assert.equal(BURST_CONFIG.min_types, 2);
+  // у темы есть история (≈1 упоминание в час), поэтому рост около x4: при x5 такой всплеск терялся
+  const history = Array.from({ length: 24 }, (_, i) => it(['tass', 'ria', 'lenta'][i % 3], `Нефть и пляж: курорты ждут туристов ${i}`, 120 + i * 50));
+  const oil = [
+    ...background(),
+    ...history,
+    it('tass', 'Нефть выбросило на пляжи Африки и Азии', 50),
+    it('ria', 'Нефть у берегов Африки: пляжи закрыты', 35),
+    it('reddit', 'Oil washing ashore on beaches of three continents', 40),
+    it('trends-us', 'oil beaches continents', 30, 'Oil spill on beaches in Africa and Asia'),
+  ];
+  const [b] = detectBursts(oil, { now: T, kinds: KINDS, config: CFG });
+  assert.ok(b, 'всплеск найден');
+  assert.deepEqual(b.types, ['media', 'reddit', 'trends']);
+  assert.ok(b.ratio >= 3 && b.ratio < 5, `ratio ${b.ratio}`); // при прежнем x5 не нашёлся бы
+  assert.equal(detectBursts(oil, { now: T, kinds: KINDS, config: { ...CFG, min_ratio: 5 } }).length, 0);
+  const lone = [...background(), it('trends-us', 'oil beaches continents', 30, 'Oil on beaches'), it('trends-us', 'oil continents spill', 20, 'Oil on beaches'), it('trends-us', 'oil beaches spill', 10, 'Oil on beaches')];
+  assert.deepEqual(detectBursts(lone, { now: T, kinds: KINDS, config: CFG }), []);
+});
+
 test('burst: один вид источников — не всплеск (только СМИ или только Reddit)', () => {
   const media = [...background(), it('tass', 'Нефть вынесло на пляжи Бразилии', 40), it('ria', 'Нефть у берегов Бразилии: пляжи закрыты', 30), it('lenta', 'Пятна нефти на пляжах Бразилии', 20)];
   assert.deepEqual(detectBursts(media, { now: T, kinds: KINDS, config: CFG }), []);
