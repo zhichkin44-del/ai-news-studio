@@ -187,3 +187,14 @@ test('дубли: не ушло по сети — бронь снимается,
   const b = await runQueue({ store: s, chat: '@ch', send, now: at(120), sleep: noSleep, config: { retries: 0 } });
   assert.equal(b.published.length, 1);
 });
+
+test('водяной знак: относительный путь картинки разрешается от корня репозитория (baseDir), иначе пост ушёл бы текстом', async () => {
+  const s = fixture(1);
+  s.addImage({ draftId: 'd-e1', eventId: 'e1', file: 'data/images/a.jpg', sha256: 'x', url: 'u', source: 'feed' });
+  const seen = [];
+  const mark = async (file) => { seen.push(file); return { file }; };
+  const { send, calls } = okSend();
+  await runQueue({ store: s, chat: '@ch', send, now: at(0), sleep: noSleep, baseDir: 'C:/repo', mark });
+  assert.match(seen[0].split('\\').join('/'), /^C:\/repo\/data\/images\/a\.jpg$/);
+  assert.equal(calls[0].method, 'sendPhoto');
+});

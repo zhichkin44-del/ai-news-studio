@@ -1,3 +1,4 @@
+import { isAbsolute, join } from 'node:path';
 import { gate, MAX_LENGTH } from './gate.js';
 import { sanitizeHtml, visibleText } from './markup.js';
 import { watermarkCached, watermarkModeOf } from './watermark.js';
@@ -70,7 +71,7 @@ export async function publish({ chat, post, send, prefix = '', retries = DEFAULT
  * Картинка перед sendPhoto проходит через водяной знак (watermark: 'off' в config — оригиналы, для личной ленты).
  * Возвращает { published:[{id,message_id}], skipped:[{id,reason}], warnings:[{id,reason}], stopped: null|'лимит в час'|'пауза'|'сеть' }.
  */
-export async function runQueue({ store, chat, send, config = {}, now = new Date(), sleep = wait, brand, mark = (file, o) => watermarkCached(file, { ...o, config: { brand } }) }) {
+export async function runQueue({ store, chat, send, config = {}, now = new Date(), sleep = wait, brand, baseDir = '', mark = (file, o) => watermarkCached(file, { ...o, config: { brand } }) }) {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const out = { published: [], skipped: [], stopped: null, warnings: [] };
   if (cfg.mode !== DEFAULT_CONFIG.mode) { out.stopped = `режим не поддерживается: ${cfg.mode}`; return out; }
@@ -85,7 +86,8 @@ export async function runQueue({ store, chat, send, config = {}, now = new Date(
     if (!store.claimBroadcast('пост', d.id, { draftId: d.id }, t().toISOString())) { out.skipped.push({ id: d.id, reason: 'уже отправлялся' }); continue; }
     const img = store.getImage(d.id);
     // Знак на каждой картинке публичного канала; не получилось — пост уходит текстом, оригинал не публикуется
-    let image = img?.file;
+    // Пути картинок в базе относительные (data/images/…): пульт запущен из своей папки, поэтому корень репозитория приходит в baseDir
+    let image = img?.file && baseDir && !isAbsolute(img.file) ? join(baseDir, img.file) : img?.file;
     if (image && watermarkModeOf(cfg) === 'on') {
       try { image = (await mark(image, { source: img.source })).file; } catch (e) { image = undefined; out.warnings.push({ id: d.id, reason: `водяной знак не нанесён, пост без картинки: ${e.message}` }); }
     }
