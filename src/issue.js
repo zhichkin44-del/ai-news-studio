@@ -7,6 +7,7 @@ import { gate } from './gate.js';
 import { score, DEFAULT_CONFIG } from './score.js';
 import { openStore, DEFAULT_DB } from './store.js';
 import { isHype } from './hype/index.js';
+import { historicalReason } from './history.js';
 
 export const DRAFT_PLACEHOLDER = '_[ЗАГЛУШКА: пересказ своими словами напишет роль «Автор» на следующем шаге]_';
 
@@ -52,7 +53,9 @@ export function decide(c, { now = Date.now(), scoreConfig, gateOpts, sourceMeta 
     { now, config: cfg },
   );
   let status, reason;
-  if (!g.ok) [status, reason] = ['отклонено', `ворота: ${g.reasons.join('; ')}`];
+  const hist = historicalReason(c.title);
+  if (hist) [status, reason] = ['отклонено', `историческая справка (${hist}), не новость`];
+  else if (!g.ok) [status, reason] = ['отклонено', `ворота: ${g.reasons.join('; ')}`];
   else if (sc.score < cfg.thresholds.publish) [status, reason] = ['отклонено', `оценка ${sc.score} ниже порога ${cfg.thresholds.publish}`];
   else if (sc.single) [status, reason] = ['отобрано', 'одно-источниковое: ждёт одобрения владельца'];
   else [status, reason] = ['выпущено', sc.acute ? 'острое: нужно одобрение владельца' : null];
