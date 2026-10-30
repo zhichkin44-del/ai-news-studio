@@ -22,6 +22,7 @@
     "breaking": { "min_sources": 3, "gap_minutes": 30, "per_day": 6, "max_age_minutes": 180 }
   },
   "brand": "ZHICHKIN NEWS",
+  "watermark": "on",
   "card_mode": "fallback",
   "owner_feed_min": 40,
   "owner_feed_top_per_day": 7,

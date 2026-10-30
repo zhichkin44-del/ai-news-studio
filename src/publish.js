@@ -1,8 +1,9 @@
 import { gate, MAX_LENGTH } from './gate.js';
 import { sanitizeHtml, visibleText } from './markup.js';
+import { watermarkCached, watermarkModeOf } from './watermark.js';
 
 /** Режим старта: публикуются только черновики, одобренные владельцем; автопубликации нет. */
-export const DEFAULT_CONFIG = { mode: 'только одобренные', max_per_hour: 3, min_gap_minutes: 20, retries: 2, retry_delay_ms: 2000 };
+export const DEFAULT_CONFIG = { mode: 'только одобренные', max_per_hour: 3, min_gap_minutes: 20, retries: 2, retry_delay_ms: 2000, watermark: 'on' };
 
 const HOUR = 3600_000;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -66,11 +67,12 @@ export async function publish({ chat, post, send, prefix = '', retries = DEFAULT
  * после предыдущей публикации. Пост, не прошедший ворота или отвергнутый Bot API, пропускается и остаётся «одобрен»;
  * сетевая ошибка после повторов останавливает проход (следующий проход попробует снова).
  * Дубли: статус меняется атомарно «одобрен» → «опубликован» с message_id.
- * Возвращает { published:[{id,message_id}], skipped:[{id,reason}], stopped: null|'лимит в час'|'пауза'|'сеть' }.
+ * Картинка перед sendPhoto проходит через водяной знак (watermark: 'off' в config — оригиналы, для личной ленты).
+ * Возвращает { published:[{id,message_id}], skipped:[{id,reason}], warnings:[{id,reason}], stopped: null|'лимит в час'|'пауза'|'сеть' }.
  */
-export async function runQueue({ store, chat, send, config = {}, now = new Date(), sleep = wait }) {
+export async function runQueue({ store, chat, send, config = {}, now = new Date(), sleep = wait, brand, mark = (file, o) => watermarkCached(file, { ...o, config: { brand } }) }) {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const out = { published: [], skipped: [], stopped: null };
+  const out = { published: [], skipped: [], stopped: null, warnings: [] };
   if (cfg.mode !== DEFAULT_CONFIG.mode) { out.stopped = `режим не поддерживается: ${cfg.mode}`; return out; }
   const t = () => (now instanceof Date ? now : new Date(now()));
   for (const d of store.listDrafts({ status: 'одобрен' })) {
@@ -82,7 +84,12 @@ export async function runQueue({ store, chat, send, config = {}, now = new Date(
     // Бронь ДО отправки: если отметка «опубликован» не запишется (база занята), тот же пост не уйдёт второй раз (29.10: один пост шесть раз)
     if (!store.claimBroadcast('пост', d.id, { draftId: d.id }, t().toISOString())) { out.skipped.push({ id: d.id, reason: 'уже отправлялся' }); continue; }
     const img = store.getImage(d.id);
-    const r = await publish({ chat, post: { text: d.text, image: img?.file }, send, retries: cfg.retries, retryDelayMs: cfg.retry_delay_ms, sleep });
+    // Знак на каждой картинке публичного канала; не получилось — пост уходит текстом, оригинал не публикуется
+    let image = img?.file;
+    if (image && watermarkModeOf(cfg) === 'on') {
+      try { image = (await mark(image, { source: img.source })).file; } catch (e) { image = undefined; out.warnings.push({ id: d.id, reason: `водяной знак не нанесён, пост без картинки: ${e.message}` }); }
+    }
+    const r = await publish({ chat, post: { text: d.text, image }, send, retries: cfg.retries, retryDelayMs: cfg.retry_delay_ms, sleep });
     if (r.ok) {
       for (let i = 0; i < 6; i++) {
         try { store.markPublished(d.id, r.message_id, t().toISOString()); break; } catch (e) { if (i === 5) out.skipped.push({ id: d.id, reason: `отправлен, отметка не записалась: ${e.message}` }); else await sleep(1000 * (i + 1)); }

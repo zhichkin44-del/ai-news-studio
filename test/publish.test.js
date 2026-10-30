@@ -159,8 +159,9 @@ test('картинка из таблицы images уходит sendPhoto; чуж
   let r = await runQueue({ store: s, chat: '@ch', send, config: { mode: 'авто' }, now: T0, sleep: noSleep });
   assert.equal(calls.length, 0);
   assert.match(r.stopped, /режим/);
-  await runQueue({ store: s, chat: '@ch', send, now: T0, sleep: noSleep });
+  await runQueue({ store: s, chat: '@ch', send, now: T0, sleep: noSleep, mark: async () => ({ file: 'data/images/wm/d-e1.jpg' }) });
   assert.equal(calls[0].method, 'sendPhoto');
+  assert.equal(calls[0].params.photo, 'data/images/wm/d-e1.jpg');
 });
 
 test('дубли: если отметка «опубликован» не записалась, пост не уходит второй раз (29.10: один пост шесть раз)', async () => {
