@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS event_sources (
 );
 CREATE INDEX IF NOT EXISTS idx_sources_link ON event_sources(link);
 CREATE INDEX IF NOT EXISTS idx_es_event ON event_sources(event_id);
-CREATE INDEX IF NOT EXISTS idx_items_link ON items(link);
 CREATE TABLE IF NOT EXISTS items (
   id TEXT PRIMARY KEY,
   source TEXT NOT NULL,
@@ -66,6 +65,7 @@ CREATE TABLE IF NOT EXISTS images (
 CREATE INDEX IF NOT EXISTS idx_images_sha ON images(sha256);
 CREATE INDEX IF NOT EXISTS idx_images_url ON images(url);
 CREATE INDEX IF NOT EXISTS idx_items_seen ON items(first_seen);
+CREATE INDEX IF NOT EXISTS idx_items_link ON items(link);
 CREATE TABLE IF NOT EXISTS polls (
   source TEXT NOT NULL,
   ts TEXT NOT NULL,
