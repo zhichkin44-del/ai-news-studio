@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS event_sources (
   PRIMARY KEY (event_id, link)
 );
 CREATE INDEX IF NOT EXISTS idx_sources_link ON event_sources(link);
+CREATE INDEX IF NOT EXISTS idx_es_event ON event_sources(event_id);
+CREATE INDEX IF NOT EXISTS idx_items_link ON items(link);
 CREATE TABLE IF NOT EXISTS items (
   id TEXT PRIMARY KEY,
   source TEXT NOT NULL,
