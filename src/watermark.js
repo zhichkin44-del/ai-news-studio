@@ -119,12 +119,12 @@ export function extractJpeg(dom) {
  */
 export async function watermark(file, { outFile, kind = 'photo', config = DEFAULT_CONFIG, browser, exec = runDump, timeoutMs = 40000 } = {}) {
   const exe = browser === undefined ? findBrowser() : browser;
-  if (!exe) throw new WatermarkError('no-browser', 'знак: не найден Chrome/Edge — установите браузер или задайте CARD_BROWSER');
-  if (!outFile) throw new WatermarkError('render', 'знак: не задан файл результата');
+  if (!exe) throw new WatermarkError('no-browser', 'watermark: Chrome/Edge not found — install a browser or set CARD_BROWSER');
+  if (!outFile) throw new WatermarkError('render', 'watermark: no output file set');
   let src;
-  try { src = await readFile(file); } catch (e) { throw new WatermarkError('format', `знак: файл не читается: ${e.message}`); }
+  try { src = await readFile(file); } catch (e) { throw new WatermarkError('format', `watermark: cannot read file: ${e.message}`); }
   const size = imageSize(src);
-  if (!size || !size.width || !size.height) throw new WatermarkError('format', 'знак: не удалось определить размер картинки (нужен jpg/png/webp)');
+  if (!size || !size.width || !size.height) throw new WatermarkError('format', 'watermark: cannot determine image size (jpg/png/webp required)');
   const out = fitSize(size);
   const tmp = await mkdtemp(join(tmpdir(), 'wm-'));
   try {
@@ -140,7 +140,7 @@ export async function watermark(file, { outFile, kind = 'photo', config = DEFAUL
       if (s && s.width === out.width && s.height === out.height) break;
       jpeg = null;
     }
-    if (!jpeg) throw new WatermarkError('render', 'знак: браузер не отдал картинку нужного размера');
+    if (!jpeg) throw new WatermarkError('render', 'watermark: browser did not return an image of the expected size');
     await mkdir(dirname(outFile), { recursive: true });
     await writeFile(outFile, jpeg);
     return { file: outFile, sha256: createHash('sha256').update(jpeg).digest('hex'), ...out };
@@ -156,7 +156,7 @@ export async function watermark(file, { outFile, kind = 'photo', config = DEFAUL
 export async function watermarkCached(file, { source = 'feed', dir = join(dirname(file), 'wm'), config = DEFAULT_CONFIG, ...rest } = {}) {
   const kind = source === 'card' ? 'card' : 'photo';
   let src;
-  try { src = await readFile(file); } catch (e) { throw new WatermarkError('format', `знак: файл не читается: ${e.message}`); }
+  try { src = await readFile(file); } catch (e) { throw new WatermarkError('format', `watermark: cannot read file: ${e.message}`); }
   const sha = createHash('sha256').update(src).update(`|${kind}|${brandOf(config)}|v1`).digest('hex').slice(0, 32);
   const outFile = join(dir, `${sha}.jpg`);
   if (existsSync(outFile)) return { file: outFile, cached: true };

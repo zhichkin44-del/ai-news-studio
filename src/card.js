@@ -367,12 +367,12 @@ const pngSize = (buf) => (buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47 
  */
 export async function renderCard(post, { outFile, config = DEFAULT_CONFIG, browser, exec = run, timeoutMs = 40000 } = {}) {
   const model = cardModel(post, { config });
-  if (!model.headline) throw new CardError('empty', 'карточка: пустой текст поста');
+  if (!model.headline) throw new CardError('empty', 'card: empty post text');
   const g = gateCard(model);
-  if (!g.ok) throw new CardError('gate', `карточка не прошла ворота: ${g.reasons.join('; ')}`);
+  if (!g.ok) throw new CardError('gate', `card did not pass the gate: ${g.reasons.join('; ')}`);
   const exe = browser === undefined ? findBrowser() : browser;
-  if (!exe) throw new CardError('no-browser', 'карточка: не найден Chrome/Edge — установите браузер или задайте путь в переменной CARD_BROWSER');
-  if (!outFile) throw new CardError('render', 'карточка: не задан файл результата');
+  if (!exe) throw new CardError('no-browser', 'card: Chrome/Edge not found — install a browser or set CARD_BROWSER');
+  if (!outFile) throw new CardError('render', 'card: no output file set');
   const tmp = await mkdtemp(join(tmpdir(), 'card-'));
   try {
     const html = join(tmp, 'card.html');
@@ -388,7 +388,7 @@ export async function renderCard(post, { outFile, config = DEFAULT_CONFIG, brows
       if (s && s.width === CARD_W && s.height === CARD_H) break;
       buf = null;
     }
-    if (!buf) throw new CardError('render', 'карточка: браузер не создал PNG 1080×1350');
+    if (!buf) throw new CardError('render', 'card: browser did not produce a 1080×1350 PNG');
     return { file: outFile, sha256: createHash('sha256').update(buf).digest('hex'), width: CARD_W, height: CARD_H, layout: model.layout, label: model.label };
   } finally {
     await rm(tmp, { recursive: true, force: true });

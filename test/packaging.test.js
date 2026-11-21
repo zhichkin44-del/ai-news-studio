@@ -182,7 +182,7 @@ test('правка 4: ingest принимает размеченный пост 
   assert.equal(rows[0].ok, true);
   assert.equal(s.getDraft('d-e1').text, KAPP); // текст хранится как есть, с разметкой
   assert.equal(rows[1].ok, false);
-  assert.match(rows[1].reasons.join(), /стоп-слово/);
+  assert.match(rows[1].reasons.join(), /stop-word/);
   s.close();
 });
 

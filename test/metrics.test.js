@@ -80,7 +80,7 @@ test('задержка: baseline и записи без даты не счита
 test('проблемные ленты: ошибки и отсутствие свежих за 6 часов', () => {
   const m = computeMetrics(fill(), { now: NOW, sources: SOURCES });
   const by = Object.fromEntries(m.problem_feeds.map((f) => [f.source, f.problem]));
-  assert.deepEqual(by, { b: 'ошибки', c: 'нет свежих за 6 ч', d: 'нет свежих за 6 ч' });
+  assert.deepEqual(by, { b: 'errors', c: 'no fresh items in 6 h', d: 'no fresh items in 6 h' });
   const fb = m.feeds.find((f) => f.source === 'b');
   assert.equal(fb.error_rate, 0.5);
   assert.equal(m.feeds.find((f) => f.source === 'a').problem, null);
@@ -99,7 +99,7 @@ test('пустая база не падает', () => {
   assert.equal(m.hot_events, 0);
   assert.equal(m.hot_multi_source_share, null);
   assert.equal(m.problem_feeds.length, 4);
-  assert.ok(formatMetrics(m).includes('Проблемные ленты'));
+  assert.ok(formatMetrics(m).includes('Problem feeds'));
 });
 
 test('parseArgs', () => {

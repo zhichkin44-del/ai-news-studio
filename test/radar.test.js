@@ -54,7 +54,7 @@ test('ошибка и пустой ответ пишутся в журнал, о
   const lines = readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.deepEqual(lines.map((l) => l.source), ['bad', 'empty']);
   assert.match(lines[0].error, /503/);
-  assert.match(lines[1].error, /пуст/);
+  assert.match(lines[1].error, /empty/);
   const polls = store.pollsSince('2000-01-01');
   assert.equal(polls.filter((p) => !p.ok).length, 2);
   rmSync(dir, { recursive: true });

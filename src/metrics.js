@@ -83,7 +83,7 @@ export function computeMetrics(store, { now = new Date(), hours = 24, sources = 
       error_rate: share(errors, ps.length),
       newest: newest ? new Date(newest).toISOString() : null,
       fresh_6h: fresh,
-      problem: errors > 0 ? 'ошибки' : fresh === 0 ? 'нет свежих за 6 ч' : null,
+      problem: errors > 0 ? 'errors' : fresh === 0 ? 'no fresh items in 6 h' : null,
       latency: latencyStats(its),
     };
   });
@@ -111,22 +111,22 @@ export function computeMetrics(store, { now = new Date(), hours = 24, sources = 
 }
 
 const pct = (x) => (x == null ? '—' : `${(x * 100).toFixed(1)} %`);
-const sec = (x) => (x == null ? '—' : `${x} с`);
+const sec = (x) => (x == null ? '—' : `${x} s`);
 
 export function formatMetrics(m) {
   const lines = [
-    `Метрики сбора за ${m.period_hours} ч (с ${m.since})`,
-    `Записей: ${m.items}; событий (кластеров): ${m.events}`,
-    `Задержка (first_seen − published, без первого опроса ленты): медиана ${sec(m.latency.median_sec)}, p90 ${sec(m.latency.p90_sec)}, не позже 5 мин: ${pct(m.latency.within_5min)} (замерено ${m.latency.measured})`,
-    `Горячие события (оценка ≥ ${HOT_SCORE}): ${m.hot_events}; из них с 2+ независимыми источниками: ${pct(m.hot_multi_source_share)}`,
-    `Оценка ≥ ${HIGH_SCORE}: ${m.high_events} — доля ${pct(m.high_share)} (цель ≤ ${m.high_share_target == null ? '—' : pct(m.high_share_target)})`,
-    `Все события с 2+ независимыми источниками (для справки): ${pct(m.multi_source_share)}`,
-    `Дублей склеено в кластеры: ${pct(m.duplicates_merged_share)}; записей без повторов: ${pct(m.unique_items_share)}`,
+    `Collection metrics for ${m.period_hours} h (since ${m.since})`,
+    `Items: ${m.items}; events (clusters): ${m.events}`,
+    `Latency (first_seen − published, excluding each feed's first poll): median ${sec(m.latency.median_sec)}, p90 ${sec(m.latency.p90_sec)}, within 5 min: ${pct(m.latency.within_5min)} (замерено ${m.latency.measured})`,
+    `Hot events (score ≥ ${HOT_SCORE}): ${m.hot_events}; of them with 2+ independent sources: ${pct(m.hot_multi_source_share)}`,
+    `Score ≥ ${HIGH_SCORE}: ${m.high_events} — share ${pct(m.high_share)} (target ≤ ${m.high_share_target == null ? '—' : pct(m.high_share_target)})`,
+    `All events with 2+ independent sources (for reference): ${pct(m.multi_source_share)}`,
+    `Duplicates merged into clusters: ${pct(m.duplicates_merged_share)}; unique items: ${pct(m.unique_items_share)}`,
     '',
-    'лента | записей | событий | опросов | ошибок | свежих 6ч | медиана | ≤5 мин',
+    'feed | items | events | polls | errors | fresh 6h | median | ≤5 min',
     ...m.feeds.map((f) => [f.source, f.items, m.events_by_feed[f.source], f.polls, f.errors, f.fresh_6h, sec(f.latency.median_sec), pct(f.latency.within_5min)].join(' | ')),
     '',
-    m.problem_feeds.length ? `Проблемные ленты: ${m.problem_feeds.map((f) => `${f.source} (${f.problem})`).join(', ')}` : 'Проблемных лент нет',
+    m.problem_feeds.length ? `Problem feeds: ${m.problem_feeds.map((f) => `${f.source} (${f.problem})`).join(', ')}` : 'No problem feeds',
   ];
   return lines.join('\n');
 }
@@ -158,7 +158,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     mkdirSync(dirname(OUT_PATH), { recursive: true });
     writeFileSync(OUT_PATH, JSON.stringify(m, null, 2) + '\n', 'utf8');
     console.log(formatMetrics(m));
-    console.log(`\nЗаписано: ${OUT_PATH}`);
+    console.log(`\nWritten: ${OUT_PATH}`);
   } finally {
     store.close();
   }

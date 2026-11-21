@@ -111,11 +111,11 @@ test('публикация: фото уходит файлом со знаком
 
 test('публикация: ошибка знака — текст без картинки, оригинал не уходит, пост не откладывается', async () => {
   const { send, calls } = okSend();
-  const r = await runQueue({ store: queue(), chat: '@c', send, now: T0, mark: async () => { throw new WatermarkError('no-browser', 'нет браузера'); } });
+  const r = await runQueue({ store: queue(), chat: '@c', send, now: T0, mark: async () => { throw new WatermarkError('no-browser', 'no browser'); } });
   assert.equal(r.published.length, 1);
   assert.equal(calls[0].method, 'sendMessage');
   assert.ok(!JSON.stringify(calls[0]).includes('orig.jpg'));
-  assert.match(r.warnings[0].reason, /нет браузера/);
+  assert.match(r.warnings[0].reason, /no browser/);
 });
 
 test('публикация: watermark off — оригинал без вызова знака', async () => {
@@ -128,7 +128,7 @@ test('публикация: watermark off — оригинал без вызов
 test('публикация без браузера по умолчанию: пост уходит текстом', async () => {
   const { send, calls } = okSend();
   const prev = process.env.CARD_BROWSER;
-  process.env.CARD_BROWSER = join(tmpdir(), 'нет-такого-браузера.exe');
+  process.env.CARD_BROWSER = join(tmpdir(), 'no-such-browser.exe');
   try {
     const r = await runQueue({ store: queue(), chat: '@c', send, now: T0 });
     assert.equal(r.published.length, 1);

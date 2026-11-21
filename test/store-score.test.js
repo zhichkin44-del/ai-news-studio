@@ -84,8 +84,8 @@ test('store: запись, чтение, статус', () => {
   assert.equal(st.get('e1').status_reason, 'тест');
   assert.deepEqual(st.list({ status: 'отклонено' }).map((e) => e.id), ['e1']);
   assert.deepEqual(st.list({ status: 'новое' }), []);
-  assert.throws(() => st.setStatus('e1', 'странный'), /неизвестный статус/);
-  assert.throws(() => st.setStatus('нет', 'новое'), /нет события/);
+  assert.throws(() => st.setStatus('e1', 'странный'), /unknown status/);
+  assert.throws(() => st.setStatus('нет', 'новое'), /no event/);
   assert.equal(st.get('нет'), undefined);
   st.close();
 });

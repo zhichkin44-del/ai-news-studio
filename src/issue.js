@@ -140,6 +140,6 @@ export async function makeIssue({ n = 30, outDir = 'out/test-channel', now = new
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { path, eventsPath, events, errors } = await makeIssue({ n: Number(process.env.ISSUE_N) || 30 });
   const by = (s) => events.filter((e) => e.status === s).length;
-  console.log(`Выпуск: ${path}; события: ${eventsPath}; событий: ${events.length} (выпущено ${by('выпущено')}, отобрано ${by('отобрано')}, отклонено ${by('отклонено')}); лент с ошибками: ${errors.length}`);
+  console.log(`Issue: ${path}; events: ${eventsPath}; events: ${events.length} (published ${by('выпущено')}, selected ${by('отобрано')}, rejected ${by('отклонено')}); feeds with errors: ${errors.length}`);
   for (const e of [...events].sort((a, b) => b.score - a.score).slice(0, 5)) console.log(`${e.title} — ${e.score} — ${e.status}`);
 }

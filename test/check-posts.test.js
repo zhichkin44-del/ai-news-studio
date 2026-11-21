@@ -15,7 +15,7 @@ test('checkPosts: хороший ok, плохой не ok с причиной', 
   assert.equal(ok, false);
   assert.equal(rows[0].ok, true);
   assert.equal(rows[1].ok, false);
-  assert.match(rows[1].reasons.join(), /ссылка/);
+  assert.match(rows[1].reasons.join(), /link/);
 });
 
 test('check-posts CLI: код 0 для хорошего, 1 для плохого', () => {
@@ -30,7 +30,7 @@ test('check-posts CLI: код 0 для хорошего, 1 для плохого
   assert.match(r0.stdout, /a1 — ok/);
   const r1 = run([good, bad]);
   assert.equal(r1.status, 1);
-  assert.match(r1.stdout, /a2 — не ok/);
+  assert.match(r1.stdout, /a2 — not ok/);
 });
 
 test('toEvalEvents: без ссылок и названий лент', () => {

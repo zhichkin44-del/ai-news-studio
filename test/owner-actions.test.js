@@ -37,17 +37,17 @@ test('поправил: текст до и после в журнале, ста�
 
 test('правка без ворот, пустая и повторное действие отклоняются, журнал не растёт', () => {
   const s = fixture();
-  assert.throws(() => s.ownerAct('d-e1', 'поправил', { text: 'x', gateOk: false }), /ворота/);
-  assert.throws(() => s.ownerAct('d-e1', 'поправил', { text: '  ', gateOk: true }), /пустой/);
-  assert.throws(() => s.ownerAct('d-e1', 'нечто'), /неизвестное/);
+  assert.throws(() => s.ownerAct('d-e1', 'поправил', { text: 'x', gateOk: false }), /gate/);
+  assert.throws(() => s.ownerAct('d-e1', 'поправил', { text: '  ', gateOk: true }), /empty/);
+  assert.throws(() => s.ownerAct('d-e1', 'нечто'), /unknown/);
   assert.equal(s.ownerActions().length, 0);
   s.ownerAct('d-e1', 'одобрил', {}, LATER);
-  assert.throws(() => s.ownerAct('d-e1', 'отклонил'), /не ждёт/);
+  assert.throws(() => s.ownerAct('d-e1', 'отклонил'), /no longer awaiting/);
   assert.equal(s.ownerActions().length, 1);
 });
 
 test('нет черновика — ошибка', () => {
-  assert.throws(() => openStore(':memory:').ownerAct('d-nope', 'одобрил'), /нет черновика/);
+  assert.throws(() => openStore(':memory:').ownerAct('d-nope', 'одобрил'), /no draft/);
 });
 
 test('отметки ленты: важно / не то пишутся в журнал, статус черновика не меняется', () => {
@@ -56,6 +56,6 @@ test('отметки ленты: важно / не то пишутся в жур
   s.ownerMark('d-e1', 'не то', { reason: 'повтор' }, LATER);
   assert.deepEqual(s.ownerActions().map((a) => [a.action, a.detail]), [['не то', { reason: 'повтор' }], ['важно', {}]]);
   assert.equal(s.getDraft('d-e1').status, 'ждёт одобрения');
-  assert.throws(() => s.ownerMark('d-e1', 'одобрил'), /неизвестная отметка/);
-  assert.throws(() => s.ownerMark('нет', 'важно'), /нет черновика/);
+  assert.throws(() => s.ownerMark('d-e1', 'одобрил'), /unknown mark/);
+  assert.throws(() => s.ownerMark('нет', 'важно'), /no draft/);
 });

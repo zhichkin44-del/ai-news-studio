@@ -209,7 +209,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       sourceMeta: sourceMetaOf(sources),
       kinds: kindsOf(sources),
     });
-    console.log(`записей ${r.items}, событий ${r.events}, отобрано ${r.selected}, отклонено ${r.rejected}, в топе дня ${r.top}, срочных ${r.breaking}, всплесков хайпа ${r.hype}`);
+    console.log(`items ${r.items}, events ${r.events}, selected ${r.selected}, rejected ${r.rejected}, top of day ${r.top}, urgent ${r.breaking}, hype spikes ${r.hype}`);
   } finally {
     store.close();
   }

@@ -186,9 +186,9 @@ export function openStore(path = DEFAULT_DB) {
     },
     count: () => db.prepare('SELECT COUNT(*) AS n FROM events').get().n,
     setStatus(id, status, reason = null, now = new Date().toISOString()) {
-      if (!STATUSES.includes(status)) throw new Error(`неизвестный статус: ${status}`);
+      if (!STATUSES.includes(status)) throw new Error(`unknown status: ${status}`);
       const r = db.prepare('UPDATE events SET status=?, status_reason=?, updated_at=? WHERE id=?').run(status, reason, now, id);
-      if (!r.changes) throw new Error(`нет события ${id}`);
+      if (!r.changes) throw new Error(`no event ${id}`);
     },
     setCategory(id, category) {
       db.prepare('UPDATE events SET category=? WHERE id=?').run(category ?? null, id);
@@ -273,9 +273,9 @@ export function openStore(path = DEFAULT_DB) {
       return rows.map((r) => ({ ...r, gate_ok: !!r.gate_ok, gate_reasons: JSON.parse(r.gate_reasons) }));
     },
     setDraftStatus(id, status, now = new Date().toISOString()) {
-      if (!DRAFT_STATUSES.includes(status)) throw new Error(`неизвестный статус черновика: ${status}`);
+      if (!DRAFT_STATUSES.includes(status)) throw new Error(`unknown draft status: ${status}`);
       const r = db.prepare('UPDATE drafts SET status=?, updated_at=? WHERE id=?').run(status, now, id);
-      if (!r.changes) throw new Error(`нет черновика ${id}`);
+      if (!r.changes) throw new Error(`no draft ${id}`);
     },
     getDraft(id) {
       const r = db.prepare('SELECT d.*, e.score FROM drafts d LEFT JOIN events e ON e.id = d.event_id WHERE d.id = ?').get(id);
@@ -287,23 +287,23 @@ export function openStore(path = DEFAULT_DB) {
      * правка с непройденными воротами не принимается; в журнале остаются текст до и после).
      */
     ownerAct(id, action, { text, gateOk, reasons = [], reason = null } = {}, now = new Date().toISOString()) {
-      if (!OWNER_ACTIONS.includes(action)) throw new Error(`неизвестное действие владельца: ${action}`);
+      if (!OWNER_ACTIONS.includes(action)) throw new Error(`unknown owner action: ${action}`);
       const d = db.prepare('SELECT * FROM drafts WHERE id = ?').get(id);
-      if (!d) throw new Error(`нет черновика ${id}`);
-      if (d.status !== 'ждёт одобрения') throw new Error(`черновик уже не ждёт одобрения (${d.status})`);
+      if (!d) throw new Error(`no draft ${id}`);
+      if (d.status !== 'ждёт одобрения') throw new Error(`draft is no longer awaiting approval (${d.status})`);
       let detail = {};
       db.exec('BEGIN IMMEDIATE');
       try {
         if (action === 'одобрил') {
-          if (!d.gate_ok) throw new Error('черновик не прошёл ворота кодом');
+          if (!d.gate_ok) throw new Error('draft did not pass the code gate');
           db.prepare('UPDATE drafts SET status=?, updated_at=? WHERE id=?').run('одобрен', now, id);
         } else if (action === 'отклонил') {
           detail = reason ? { reason: String(reason) } : {};
           db.prepare('UPDATE drafts SET status=?, updated_at=? WHERE id=?').run('отклонён владельцем', now, id);
         } else {
           const next = String(text ?? '').trim();
-          if (!next) throw new Error('пустой текст');
-          if (!gateOk) throw new Error('правка не прошла ворота кодом');
+          if (!next) throw new Error('empty text');
+          if (!gateOk) throw new Error('edit did not pass the code gate');
           detail = { before: d.text, after: next };
           db.prepare('UPDATE drafts SET text=?, gate_ok=1, gate_reasons=?, updated_at=? WHERE id=?').run(next, JSON.stringify(reasons), now, id);
         }
@@ -319,9 +319,9 @@ export function openStore(path = DEFAULT_DB) {
      * Статус черновика не меняется — пишется только строка в owner_actions, в любом статусе.
      */
     ownerMark(id, action, { reason = null } = {}, now = new Date().toISOString()) {
-      if (!OWNER_MARKS.includes(action)) throw new Error(`неизвестная отметка: ${action}`);
+      if (!OWNER_MARKS.includes(action)) throw new Error(`unknown mark: ${action}`);
       const d = db.prepare('SELECT event_id FROM drafts WHERE id = ?').get(id);
-      if (!d) throw new Error(`нет черновика ${id}`);
+      if (!d) throw new Error(`no draft ${id}`);
       const detail = action === 'не то' && reason ? { reason: String(reason) } : {};
       db.prepare('INSERT INTO owner_actions (draft_id, event_id, action, detail, created_at) VALUES (?,?,?,?,?)').run(id, d.event_id, action, JSON.stringify(detail), now);
     },

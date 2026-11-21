@@ -60,7 +60,7 @@ test('ingest: ворота, статусы, без дублей; событие 
   ]);
   assert.equal(r.ok, false);
   assert.deepEqual(r.rows.map((x) => x.ok), [true, false, false]);
-  assert.match(r.rows[1].reasons.join(), /ссылка/);
+  assert.match(r.rows[1].reasons.join(), /link/);
   assert.deepEqual(s.listDrafts().map((d) => [d.event_id, d.status, d.gate_ok]), [['a', 'ждёт одобрения', true], ['b', 'отклонён кодом', false]]);
   // повтор
   const again = ingestPosts(s, [{ id: 'a', style: 'иначе', text: 'Другой текст.' }]);
@@ -84,8 +84,8 @@ test('drafts: смена статуса и выдача для пульта', ()
   assert.deepEqual(pendingDrafts(s).map((d) => d.event_id), ['b']);
   s.setDraftStatus(a.id, 'опубликован');
   assert.equal(s.listDrafts({ status: 'опубликован' }).length, 1);
-  assert.throws(() => s.setDraftStatus(a.id, 'что-то'), /неизвестный/);
-  assert.throws(() => s.setDraftStatus('нет', 'одобрен'), /нет черновика/);
+  assert.throws(() => s.setDraftStatus(a.id, 'что-то'), /unknown/);
+  assert.throws(() => s.setDraftStatus('нет', 'одобрен'), /no draft/);
 });
 
 test('CLI: batch → ingest → drafts --json', () => {
@@ -105,7 +105,7 @@ test('CLI: batch → ingest → drafts --json', () => {
   const i = run('src/ingest.js', folder);
   assert.equal(i.status, 1);
   assert.match(i.stdout, /— ok/);
-  assert.match(i.stdout, /— не ok — ссылка/);
+  assert.match(i.stdout, /— not ok — link/);
   const d = JSON.parse(run('src/drafts.js', '--json').stdout);
   assert.equal(d.length, 1);
   assert.equal(d[0].text, 'Хороший пост.');

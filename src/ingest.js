@@ -21,7 +21,7 @@ export function ingestPosts(store, posts) {
 }
 
 export const formatRows = (rows) =>
-  rows.map((r) => `${r.id} — ${r.ok ? 'ok' : 'не ok'}${r.reasons.length ? ' — ' + r.reasons.join('; ') : ''}`).join('\n');
+  rows.map((r) => `${r.id} — ${r.ok ? 'ok' : 'not ok'}${r.reasons.length ? ' — ' + r.reasons.join('; ') : ''}`).join('\n');
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dir = process.argv[2];

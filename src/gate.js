@@ -53,12 +53,12 @@ export function gate(post, { outlets = OUTLETS, stopWords = STOP_WORDS, maxLengt
   const raw = `${post?.title ?? ''}\n${post?.body ?? ''}`.trim();
   const text = visibleText(raw).trim(); // разрешённые теги не считаются ни в длину, ни в стоп-слова
   const reasons = [];
-  if (!text) reasons.push('пустой пост');
-  if (text.length > maxLength) reasons.push(`длиннее ${maxLength} знаков (${text.length})`);
-  if (LINK_RES.some((re) => re.test(raw) || re.test(text))) reasons.push('ссылка или @юзернейм'); // и в сырой разметке: <a href> не пройдёт
+  if (!text) reasons.push('empty post');
+  if (text.length > maxLength) reasons.push(`longer than ${maxLength} characters (${text.length})`);
+  if (LINK_RES.some((re) => re.test(raw) || re.test(text))) reasons.push('link or @username'); // и в сырой разметке: <a href> не пройдёт
   const outlet = outlets.find((o) => hasWord(text, o));
-  if (outlet) reasons.push(`упоминание издания: ${outlet}`);
+  if (outlet) reasons.push(`outlet mentioned: ${outlet}`);
   const stop = stopWords.find((w) => hasWord(text, w));
-  if (stop) reasons.push(`стоп-слово: ${stop}`);
+  if (stop) reasons.push(`stop-word: ${stop}`);
   return { ok: reasons.length === 0, reasons };
 }

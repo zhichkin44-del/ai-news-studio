@@ -32,7 +32,7 @@ export async function pollOnce(allSources, { store, loader = fetchSource, logPat
     let items = [];
     if (r.status === 'rejected') error = String(r.reason?.message ?? r.reason);
     // у сигналов хайпа пусто — норма (Reddit ответил 429, в Википедии нет резкого роста)
-    else if (!r.value.length && !isHype(src)) error = 'пустой ответ: 0 записей';
+    else if (!r.value.length && !isHype(src)) error = 'empty response: 0 items';
     else items = r.value;
     let added = 0;
     try {
@@ -88,7 +88,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     await runRadar({
       sources, store, ...args,
-      onPass: (summary, n) => console.log(`${new Date().toISOString()} проход ${n}: новых ${summary.reduce((a, s) => a + s.added, 0)}, лент с ошибками ${summary.filter((s) => !s.ok).length}`),
+      onPass: (summary, n) => console.log(`${new Date().toISOString()} pass ${n}: new ${summary.reduce((a, s) => a + s.added, 0)}, feeds with errors ${summary.filter((s) => !s.ok).length}`),
     });
   } finally {
     store.close();
