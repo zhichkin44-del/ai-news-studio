@@ -1,6 +1,8 @@
 {
   "name": "studio-news",
   "version": "0.1.0",
+  "description": "Automated pipeline for a Russian-language news channel: feed collection, event scoring, editor hand-off and Telegram publishing",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "engines": { "node": ">=22" },
