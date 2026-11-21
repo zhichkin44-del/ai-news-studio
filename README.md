@@ -14,6 +14,14 @@ Interface language: Russian (the channel publishes in Russian).
 - **Infographic cards**: 1080×1350 PNG cards rendered from HTML with headless Chrome or Edge, with a channel watermark. If no browser is found, posts are sent as text.
 - **Operations**: `npm run digest` builds a night/morning digest, `npm run smoke` checks that feeds are alive, and `npm run metrics` reports collection and selection statistics.
 
+## Screenshots
+
+Infographic cards rendered by `src/card.js` (headline and figure layouts) from sample post text. The figure layout is picked automatically when the post has a notable number.
+
+| Headline layout | Figure layout |
+|---|---|
+| ![Headline card](docs/screenshots/card-1.png) | ![Figure card](docs/screenshots/card-2.png) |
+
 ## Requirements
 
 - **Node.js 22.13 or newer** (uses the built-in `node:sqlite` module). Tested with Node.js 24.22.1 on Windows 11.
