@@ -131,7 +131,7 @@ The pipeline runs in this order. Each step is a separate command.
    npm run check-posts -- path/to/posts.json
    ```
 
-Other commands: `npm run issue` (Markdown issue of top events, written to `out/`), `npm run digest` (night digest, default window 18:00–08:00 UTC+7), `npm run metrics -- --hours 72`, `npm run images`.
+Other commands: `npm run issue` (Markdown issue of top events, written to `out/`), `npm run digest` (night digest, default window 18:00–08:00 UTC+7), `npm run metrics -- --hours 72` (writes `docs/eval/metrics-latest.json`), `npm run images`.
 
 ## Tests
 
