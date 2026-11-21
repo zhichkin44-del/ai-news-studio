@@ -10,8 +10,8 @@ import { cardText } from './markup.js';
 import { DEFAULT_CONFIG } from './score.js';
 
 /**
- * Своя инфографика к посту: HTML 1080×1350 → PNG через Chrome/Edge headless.
- * Только текст и графика из кода: ни фото, ни ИИ-картинок, ни ссылок и названий изданий.
+ * Custom infographic for a post: HTML 1080×1350 → PNG via headless Chrome/Edge.
+ * Text and graphics from code only: no photos, no AI images, no links or outlet names.
  */
 export const CARD_W = 1080;
 export const CARD_H = 1350;
@@ -24,7 +24,7 @@ export class CardError extends Error {
 export const brandOf = (config = DEFAULT_CONFIG) => String(config?.brand ?? 'ZHICHKIN NEWS');
 export const cardModeOf = (config = DEFAULT_CONFIG) => (['always', 'fallback', 'off'].includes(config?.card_mode) ? config.card_mode : 'fallback');
 
-// ───────── числа ─────────
+// ───────── numbers ─────────
 
 const num = (s) => Number(String(s).replace(/\s/g, '').replace(',', '.'));
 const fmt = (s) => String(s).replace(/\s/g, '').replace('.', ',');
@@ -41,7 +41,7 @@ const SCALE = { тыс: 'тыс.', млн: 'млн', млрд: 'млрд', тр�
 const scaleOf = (w) => SCALE[String(w ?? '').toLowerCase().replace('.', '')] ?? null;
 const UNITS = [[/^км/i, 'км'], [/^градус/i, 'градусов'], [/^баллов?/i, 'баллов'], [/^тонн/i, 'тонн'], [/^метр/i, 'метров']];
 
-// Бытовые единицы: формы «1 / 2–4 / 5+»; years — значения свыше 120 не считаем (это год, а не срок)
+// Everyday units: forms "1 / 2–4 / 5+"; years — values above 120 are not counted (a year, not a duration)
 const COUNT_UNITS = [
   [/^лет$|^год(?:а|ов|у|ам)?$/i, ['год', 'года', 'лет'], true],
   [/^час(?:а|ов|ам)?$/i, ['час', 'часа', 'часов']],
@@ -66,24 +66,24 @@ const plural = (n, [one, few, many]) => {
   return many;
 };
 
-/** Слово-число рядом с жертвами: «погибли двое», «трое раненых». */
+/** Number word next to casualties: «погибли двое» ("two died"), «трое раненых» ("three injured"). */
 const WORD_NUM = {
   один: 1, одного: 1, одна: 1, двое: 2, два: 2, две: 2, двух: 2, трое: 3, три: 3, трёх: 3, трех: 3, четверо: 4, четыре: 4, четырёх: 4, четырех: 4,
   пятеро: 5, пять: 5, пяти: 5, шестеро: 6, шесть: 6, шести: 6, семеро: 7, семь: 7, семи: 7, восемь: 8, восьми: 8, девять: 9, девяти: 9, десять: 10, десяти: 10,
 };
 const WORD_NUM_RE = Object.keys(WORD_NUM).join('|');
-const CASUALTY = new Set(['погибших', 'жертв', 'раненых', 'пострадавших', 'заложников']); // главнее процентов и денег
+const CASUALTY = new Set(['погибших', 'жертв', 'раненых', 'пострадавших', 'заложников']); // outranks percentages and money
 
 function victimFigures(t) {
   const figures = [];
-  // «30 человек погибли», «80 раненых», «трое раненых»
+  // «30 человек погибли» ("30 people died"), «80 раненых» ("80 injured"), «трое раненых» ("three injured")
   const re1 = new RegExp(`(\\d{1,3}(?:[  ]\\d{3})*|\\d+|(?<![\\p{L}])(?:${WORD_NUM_RE}))\\s+(человек\\p{L}*\\s+)?(погиб\\p{L}*|жертв\\p{L}*|ранен\\p{L}*|пострадав\\p{L}*|заложник\\p{L}*|пассажир\\p{L}*|эвакуирован\\p{L}*)`, 'giu');
   for (const x of t.matchAll(re1)) {
     const label = victimLabel(x[3]);
     const value = WORD_NUM[x[1].toLowerCase()] ?? num(x[1]);
     if (label) figures.push({ value, label });
   }
-  // «погибли 12», «погибли двое», «ранены пятеро»
+  // «погибли 12» ("12 died"), «погибли двое» ("two died"), «ранены пятеро» ("five injured")
   const re2 = new RegExp(`(погиб\\p{L}*|ранен\\p{L}*|пострадал\\p{L}*)\\s+(?:более\\s+|около\\s+|не менее\\s+)?(\\d+|(?<![\\p{L}])(?:${WORD_NUM_RE}))(?![\\p{L}\\d])(?!\\s?(?:%|лет))`, 'giu');
   for (const x of t.matchAll(re2)) {
     const label = victimLabel(x[1]);
@@ -100,9 +100,9 @@ const victimsResult = (dedup) => {
 };
 
 /**
- * Заметная цифра в тексте поста, регулярками: число жертв, процент, сумма, величина с единицей.
- * Жертвы главнее процентов и денег. → { text:'30', unit:'погибших', kind:'victims'|'percent'|'money'|'value', value, share?, second? } | null.
- * Годы и даты цифрой не считаются.
+ * A notable figure in the post text, via regexes: number of casualties, percentage, sum, value with a unit.
+ * Casualties outrank percentages and money. → { text:'30', unit:'погибших', kind:'victims'|'percent'|'money'|'value', value, share?, second? } | null.
+ * Years and dates written as digits are not counted.
  */
 export function extractNumber(text) {
   const t = String(text ?? '').replace(/ /g, ' ');
@@ -131,22 +131,22 @@ export function extractNumber(text) {
     const unit = COUNT_UNITS.find(([re]) => re.test(x[2]));
     if (!unit) continue;
     const value = num(x[1]);
-    if (unit[2] && value > 120) continue; // «2026 году» — дата, а не срок
+    if (unit[2] && value > 120) continue; // «2026 году» ("in 2026") — a date, not a duration
     return { text: fmt(x[1]), unit: plural(value, unit[1]), kind: 'value', value };
   }
   return null;
 }
 
-/** Макет: «Цифра», если в посте есть заметная цифра, иначе «Заголовок». */
+/** Layout: "number" if the post has a notable figure, otherwise "headline". */
 export const pickLayout = (text) => (extractNumber(cardText(text)) ? 'number' : 'headline');
 
-// ───────── текст ─────────
+// ───────── text ─────────
 
 const stripEmoji = (s) => String(s ?? '').replace(/[\p{Extended_Pictographic}️‍]/gu, '').replace(/[ \t]+/g, ' ').trim();
 
 /**
- * Заголовок = первая строка поста (или первая фраза, если строка слишком длинная); подпись = первая фраза(ы) остального.
- * Разметка снимается, блок <blockquote> (слой 3, подробности) на карточку не попадает.
+ * Headline = the first line of the post (or its first sentence if the line is too long); caption = the first sentence(s) of the rest.
+ * Markup is stripped; the <blockquote> block (layer 3, details) does not make it onto the card.
  */
 export function splitPost(text) {
   const clean = stripEmoji(cardText(text)).replace(/\r/g, '');
@@ -166,14 +166,14 @@ export function splitPost(text) {
 }
 
 const TAIL_WORDS = /^(?:в|во|на|у|к|ко|с|со|и|а|но|о|об|от|из|за|по|до|для|при|над|под|же|что|как|это|эти|обе|все|его|её|их|—|-)$/i;
-const DANGLING = /(?:ого|его|ой|ей|ых|их|ым|им|ую|юю|ая|яя|ое|ее|ые|ие)$/i; // повисшее прилагательное в конце обрезанного титра
+const DANGLING = /(?:ого|его|ой|ей|ых|их|ым|им|ую|юю|ая|яя|ое|ее|ые|ие)$/i; // a dangling adjective at the end of a truncated title
 const TITLE_WORDS = 8;
 const TITLE_CHARS = 70;
 const wordsOf = (s) => s.split(/\s+/).filter(Boolean);
 
 /**
- * Короткий титр карточки (6–8 слов, ≤70 знаков): до двоеточия, тире или первой запятой —
- * чтобы не повторять цифру и весь текст поста. Короткий заголовок остаётся как есть.
+ * Short card title (6–8 words, ≤70 characters): up to a colon, dash or first comma —
+ * so as not to repeat the figure and the whole post text. A short headline is kept as is.
  */
 export function cardTitle(headline) {
   let t = String(headline ?? '').replace(/\s+/g, ' ').trim();
@@ -189,7 +189,7 @@ export function cardTitle(headline) {
   return w.join(' ').replace(/[\s,;:—–-]+$/, '');
 }
 
-/** Короткая строка главного для безцифрового макета (≤90 знаков): суть строки «Что это значит/Что сейчас» или первая фраза после заголовка. */
+/** Short lead line for the no-figure layout (≤90 characters): the gist of the «Что это значит / Что сейчас» line, or the first sentence after the headline. */
 export function cardCaption(caption, title, max = 90) {
   const flat = String(caption ?? '').replace(/•\s*/g, '').replace(/\s+/g, ' ').trim();
   const sense = flat.match(/Что (?:это значит|сейчас)\s*:\s*(.+)$/i);
@@ -205,7 +205,7 @@ export function cardCaption(caption, title, max = 90) {
   return out === title ? '' : out;
 }
 
-/** Перенос по словам по оценке ширины; слово длиннее строки режется. */
+/** Word wrap by estimated width; a word longer than a line is split. */
 export function wrapText(text, maxChars) {
   const lines = [];
   let cur = '';
@@ -223,11 +223,11 @@ export function wrapText(text, maxChars) {
   return lines;
 }
 
-const CHAR_W = 0.58; // средняя ширина знака жирного кегля, в em (с запасом)
+const CHAR_W = 0.58; // average glyph width of a bold font size, in em (with a margin)
 
 /**
- * Подбирает кегль: самый крупный, при котором текст влезает в width и в maxLines строк
- * (а при заданных height и lh — и по высоте); на минимуме — обрезка с «…».
+ * Picks the font size: the largest at which the text fits in width and maxLines lines
+ * (and, when height and lh are given, in height too); at the minimum — truncated with «…».
  */
 export function fitText(text, { width, maxLines, maxSize, minSize, step = 2, height = Infinity, lh = 1.12 }) {
   const cap = (size) => Math.max(1, Math.min(maxLines, Math.floor(height / (size * lh))));
@@ -239,18 +239,18 @@ export function fitText(text, { width, maxLines, maxSize, minSize, step = 2, hei
   const last = lines.length - 1;
   if (last >= 0) {
     const l = lines[last];
-    lines[last] = `${(/\s/.test(l) ? l.replace(/\s+\S*$/, '') : l.slice(0, -1)).replace(/[\s.,;:—-]+$/, '')}…`; // режем по слову
+    lines[last] = `${(/\s/.test(l) ? l.replace(/\s+\S*$/, '') : l.slice(0, -1)).replace(/[\s.,;:—-]+$/, '')}…`; // cut at a word boundary
   }
   return { size: minSize, lines };
 }
 
-// ───────── категория ─────────
+// ───────── category ─────────
 
 const EMERGENCY = /погиб|жертв|убит|теракт|взрыв|катастроф|авари|крушен|пожар|землетряс|наводнен|ураган|цунами|извержен|стрельб|заложник|обрушен/i;
 const MONEY = /нефт|рубл|биржа|биржи|курс\b|доллар|евро\b|инфляц|ставк|биткоин|акци[йи]|экономик|банк|налог|санкци/i;
 const CATEGORY_LABEL = { science: 'Наука', tech: 'Технологии', space: 'Космос', health: 'Здоровье', economy: 'Деньги' };
 
-/** Метка категории: ЧП, Наука, Технологии, Космос, Здоровье, Деньги или Мир. */
+/** Category label: ЧП (incidents), Наука (science), Технологии (tech), Космос (space), Здоровье (health), Деньги (money) or Мир (world). */
 export function labelFor(text, category) {
   if (CATEGORY_LABEL[category]) return CATEGORY_LABEL[category];
   if (EMERGENCY.test(text)) return 'ЧП';
@@ -276,7 +276,7 @@ export const LABELS = Object.keys(ICONS);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
-/** «14:05 · 30 октября» по МСК (tz_hours из daily-настроек). */
+/** "14:05 · 30 октября" in Moscow time (tz_hours from the daily settings). */
 export function stamp(time = new Date(), tz = DEFAULT_CONFIG.daily?.tz_hours ?? 3) {
   const t = new Date(time);
   const d = new Date((Number.isNaN(t.getTime()) ? Date.now() : t.getTime()) + tz * 3600_000);
@@ -297,15 +297,15 @@ function bars(n) {
   return `<div style="margin-top:24px;height:14px;width:240px;background:${YELLOW}"></div>`;
 }
 
-/** Всё, что видно на карточке, без разметки — для ворот. */
+/** Everything visible on the card, without markup — for the gate. */
 export function cardModel(post, { config = DEFAULT_CONFIG } = {}) {
   const text = String(post?.text ?? '');
   const { headline, rest } = splitPost(text);
-  const visible = cardText(text); // без слоя 3: цифра берётся только из видимой части
+  const visible = cardText(text); // without layer 3: the figure is taken only from the visible part
   const n = extractNumber(visible);
-  const label = labelFor(headline, post?.category); // ЧП и Деньги — только по заголовку, не по всему тексту
+  const label = labelFor(headline, post?.category); // ЧП and Деньги — by headline only, not the whole text
   const title = cardTitle(headline) || headline;
-  // с цифрой текст поста на карточке не дублируется; без цифры — одна короткая строка главного
+  // with a figure the post text is not duplicated on the card; without one — a single short lead line
   return { layout: n ? 'number' : 'headline', label, headline, title, caption: n ? '' : cardCaption(rest, title), number: n, stamp: stamp(post?.time, config.daily?.tz_hours), brand: brandOf(config) };
 }
 
@@ -313,7 +313,7 @@ export function cardTexts(model) {
   return [model.label, model.title ?? model.headline, model.caption, model.number?.text, model.number?.unit, model.number?.second?.label, model.stamp, model.brand].filter(Boolean);
 }
 
-/** Ворота по тексту карточки: ссылок, @имён, названий изданий и стоп-слов быть не должно. */
+/** Gate for the card text: no links, @names, outlet names or stop-words may appear. */
 export function gateCard(model) {
   return gate({ body: cardTexts(model).join('\n') });
 }
@@ -327,13 +327,13 @@ export function cardHtml(model) {
     const big = fitText(model.number.text, { width: W, maxLines: 1, maxSize: 270, minSize: 110, step: 6, lh: 1.05 });
     const bigH = Math.round(big.size * 1.05);
     const unit = model.number.unit ? `<div style="font-size:36px;font-weight:700;color:#b9bcc2;white-space:nowrap;overflow:hidden;margin-top:6px">${esc(model.number.unit)}</div>` : '';
-    // титр короткий и крупный; мелкого текста-дубля поста под ним нет
+    // title short and large; no small duplicate of the post text below it
     const head = fitText(model.title ?? model.headline, { width: W, maxLines: 3, maxSize: 76, minSize: 42, height: 300 });
     body = `<div style="position:absolute;left:80px;top:230px;width:${W}px;height:${bigH}px;overflow:hidden">${lines(big, YELLOW, 900, 1.05)}</div>
 <div style="position:absolute;left:80px;top:${230 + bigH}px;width:${W}px;height:${unit ? 190 : 140}px;overflow:hidden">${unit}${bars(model.number)}</div>
 <div style="position:absolute;left:80px;top:820px;width:${W}px;height:310px;overflow:hidden">${lines(head, '#fff', 800, 1.12)}</div>`;
   } else {
-    // без цифры: крупный титр, жёлтый разделитель, короткая строка главного
+    // no figure: large title, yellow divider, short lead line
     const head = fitText(model.title ?? model.headline, { width: W, maxLines: 4, maxSize: 112, minSize: 52, height: 540 });
     const cap = model.caption ? fitText(model.caption, { width: W, maxLines: 2, maxSize: 44, minSize: 30, height: 130, lh: 1.25 }) : null;
     body = `<div style="position:absolute;left:80px;top:330px;width:${W}px;height:800px;overflow:hidden">${lines(head, '#fff', 900)}<div style="margin-top:40px;height:14px;width:240px;background:${YELLOW}"></div>${cap ? `<div style="margin-top:36px">${lines(cap, '#b9bcc2', 600, 1.25)}</div>` : ''}</div>`;
@@ -341,7 +341,7 @@ export function cardHtml(model) {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><style>html,body{margin:0;padding:0}body{width:${CARD_W}px;height:${CARD_H}px;background:#222428;font-family:'Segoe UI','Arial',sans-serif;position:relative;overflow:hidden}</style></head><body><div style="position:absolute;left:0;top:0;width:${CARD_W}px;height:22px;background:${YELLOW}"></div>${chip}${body}${foot}</body></html>`;
 }
 
-// ───────── браузер ─────────
+// ───────── browser ─────────
 
 const WIN_PATHS = (env) => {
   const roots = [env.PROGRAMFILES, env['PROGRAMFILES(X86)'], env.LOCALAPPDATA].filter(Boolean);
@@ -349,7 +349,7 @@ const WIN_PATHS = (env) => {
 };
 const OTHER_PATHS = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/microsoft-edge', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'];
 
-/** Путь к Chrome/Edge: CARD_BROWSER, потом стандартные места Windows. null — не найден. */
+/** Path to Chrome/Edge: CARD_BROWSER first, then the standard Windows locations. null — not found. */
 export function findBrowser({ env = process.env, exists = existsSync } = {}) {
   if (env.CARD_BROWSER) return exists(env.CARD_BROWSER) ? env.CARD_BROWSER : null;
   return [...WIN_PATHS(env), ...OTHER_PATHS].find((p) => exists(p)) ?? null;
@@ -362,8 +362,8 @@ const run = (cmd, args, timeout) => new Promise((resolve, reject) => {
 const pngSize = (buf) => (buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47 ? { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) } : null);
 
 /**
- * Пост → PNG 1080×1350. post: { text, category?, time? }. Возвращает { file, sha256, width, height, layout, label }.
- * Нет браузера или не прошли ворота — CardError (code 'no-browser' | 'gate' | 'render'), без падения процесса.
+ * Post → PNG 1080×1350. post: { text, category?, time? }. Returns { file, sha256, width, height, layout, label }.
+ * No browser, or the gate failed — CardError (code 'no-browser' | 'gate' | 'render'), without crashing the process.
  */
 export async function renderCard(post, { outFile, config = DEFAULT_CONFIG, browser, exec = run, timeoutMs = 40000 } = {}) {
   const model = cardModel(post, { config });

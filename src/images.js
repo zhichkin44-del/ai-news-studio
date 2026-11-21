@@ -15,7 +15,7 @@ const UA = { 'user-agent': 'studio-news/0.1 (image picker)' };
 const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
 const MIN_WIDTH = 600;
 
-/** Читает тело потока не больше max байт; возвращает { buf, truncated }. */
+/** Reads the body of the stream, no more than max bytes; returns { buf, truncated }. */
 async function readLimited(res, max) {
   if (!res.body) {
     const buf = Buffer.from(await res.arrayBuffer());
@@ -29,11 +29,11 @@ async function readLimited(res, max) {
     size += chunk.length;
     if (size > max) { truncated = true; break; }
   }
-  try { await res.body.cancel?.(); } catch { /* уже закрыт */ }
+  try { await res.body.cancel?.(); } catch { /* already closed */ }
   return { buf: Buffer.concat(parts).subarray(0, max), truncated };
 }
 
-/** og:image / twitter:image из HTML (достаточно головы страницы). */
+/** og:image / twitter:image from HTML (the page head is enough). */
 export function parseOgImage(html, base) {
   for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
     const t = m[0];
@@ -44,12 +44,12 @@ export function parseOgImage(html, base) {
     try {
       const u = new URL(decode(content), base);
       if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
-    } catch { /* битая ссылка */ }
+    } catch { /* broken link */ }
   }
   return null;
 }
 
-/** Только голова страницы: таймаут 8 с, до 300 КБ. */
+/** Page head only: 8 s timeout, up to 300 KB. */
 export async function fetchOgImage(pageUrl, { fetchImpl = fetch } = {}) {
   const res = await fetchImpl(pageUrl, { signal: AbortSignal.timeout(PAGE_TIMEOUT_MS), headers: { ...UA, accept: 'text/html' } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -62,8 +62,8 @@ export async function fetchOgImage(pageUrl, { fetchImpl = fetch } = {}) {
 const stripTags = (s) => decode(String(s ?? '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
 
 /**
- * Лицензия Commons → { ok, license }. Разрешены CC0, общественное достояние, CC BY, CC BY-SA;
- * NC, ND, GFDL-only, «fair use» и неизвестное — нет. Для CC BY / BY-SA автор обязателен.
+ * Commons license → { ok, license }. Allowed: CC0, public domain, CC BY, CC BY-SA;
+ * NC, ND, GFDL-only, «fair use» and unknown — not allowed. For CC BY / BY-SA the author is required.
  */
 export function checkLicense(short, author) {
   const s = stripTags(short);
@@ -74,7 +74,7 @@ export function checkLicense(short, author) {
   return { ok: false, license: s };
 }
 
-/** Ответ Commons (generator=search + imageinfo) → кандидаты с открытой лицензией и автором. */
+/** Commons response (generator=search + imageinfo) → candidates with an open license and an author. */
 export function parseCommons(json) {
   const out = [];
   const pages = Object.values(json?.query?.pages ?? {}).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
@@ -94,7 +94,7 @@ export function parseCommons(json) {
   return out;
 }
 
-/** Ключевые имена/места из заголовка: последовательности слов с заглавной буквы (не считая первого слова фразы). */
+/** Key names/places from the headline: sequences of capitalized words (not counting the first word of the phrase). */
 export function keyNames(title) {
   const words = String(title ?? '').split(/\s+/).map((w) => w.replace(/^[«"'(]+|[»"'),.:;!?—-]+$/g, ''));
   const found = [];
@@ -106,7 +106,7 @@ export function keyNames(title) {
   });
   flush();
   const first = words[0] ?? '';
-  if (!found.length && /^[A-ZА-ЯЁ][\p{L}-]{3,}$/u.test(first)) found.push(first); // заголовок начинается с имени
+  if (!found.length && /^[A-ZА-ЯЁ][\p{L}-]{3,}$/u.test(first)) found.push(first); // the headline starts with a name
   return found.sort((a, b) => b.length - a.length).slice(0, 2);
 }
 
@@ -120,11 +120,11 @@ export async function searchCommons(query, { fetchImpl = fetch } = {}) {
 }
 
 /**
- * Кандидаты по приоритету: лента → og:image → Commons. Ошибка одного источника не мешает следующим.
- * event: { title, links: [], images: [] }; skipUrl(url) → true, если картинка с этим URL уже занята.
+ * Candidates by priority: feed → og:image → Commons. An error from one source does not stop the next ones.
+ * event: { title, links: [], images: [] }; skipUrl(url) → true if a picture with this URL is already taken.
  */
 export async function* candidates(event, { fetchImpl = fetch, skipUrl = () => false, deadline = Infinity } = {}) {
-  const late = () => Date.now() > deadline; // общий бюджет времени на один черновик
+  const late = () => Date.now() > deadline; // overall time budget for one draft
   const seen = new Set();
   const fresh = (url) => url && !seen.has(url) && !skipUrl(url) && (seen.add(url), true);
   const blank = { license: null, author: null, width: null, height: null };
@@ -132,13 +132,13 @@ export async function* candidates(event, { fetchImpl = fetch, skipUrl = () => fa
   for (const link of (event.links ?? []).slice(0, 3)) {
     if (late()) return;
     let url = null;
-    try { url = await fetchOgImage(link, { fetchImpl }); } catch { /* страница недоступна — дальше */ }
+    try { url = await fetchOgImage(link, { fetchImpl }); } catch { /* page unavailable — move on */ }
     if (fresh(url)) yield { url, source: 'og', ...blank };
   }
   for (const name of keyNames(event.title)) {
     if (late()) return;
     let list = [];
-    try { list = await searchCommons(name, { fetchImpl }); } catch { /* Commons недоступен */ }
+    try { list = await searchCommons(name, { fetchImpl }); } catch { /* Commons unavailable */ }
     for (const c of list) if (fresh(c.url)) yield c;
   }
 }
@@ -152,7 +152,7 @@ export async function pickImage(event, opts = {}) {
   return null;
 }
 
-/** Размер по заголовку файла: JPEG, PNG, WebP, GIF. null — формат не распознан. */
+/** Size from the file header: JPEG, PNG, WebP, GIF. null — format not recognized. */
 export function sniffImage(buf) {
   if (buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47) return { ext: 'png', width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
   if (buf.length > 4 && buf[0] === 0xff && buf[1] === 0xd8) {
@@ -173,11 +173,11 @@ export function sniffImage(buf) {
     if (k === 'VP8 ') return { ext: 'webp', width: buf.readUInt16LE(26) & 0x3fff, height: buf.readUInt16LE(28) & 0x3fff };
     return { ext: 'webp', width: null, height: null };
   }
-  if (buf.length > 10 && buf.toString('latin1', 0, 3) === 'GIF') return null; // GIF не поддерживаем (в том числе анимацию): формат не распознан → кандидат отвергается
+  if (buf.length > 10 && buf.toString('latin1', 0, 3) === 'GIF') return null; // GIF is not supported (including animation): format not recognized → the candidate is rejected
   return null;
 }
 
-/** Скачать картинку в память: Content-Type image/*, не больше 5 МБ. Возвращает { buf, sha256, ext, width, height }. */
+/** Download an image into memory: Content-Type image/*, no more than 5 MB. Returns { buf, sha256, ext, width, height }. */
 export async function downloadImage(url, { fetchImpl = fetch } = {}) {
   const res = await fetchImpl(url, { signal: AbortSignal.timeout(20000), headers: { ...UA, accept: 'image/*' } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -189,7 +189,7 @@ export async function downloadImage(url, { fetchImpl = fetch } = {}) {
   return { buf, sha256: createHash('sha256').update(buf).digest('hex'), ...info };
 }
 
-/** Событие для подбора: заголовок, ссылки и картинки лент из базы. */
+/** Event for picking: headline, links and feed images from the database. */
 export function eventForPick(store, eventId) {
   const e = store.get(eventId);
   const media = store.eventMedia(eventId);
@@ -197,8 +197,8 @@ export function eventForPick(store, eventId) {
 }
 
 /**
- * Подобрать и скачать картинку черновику. Повтор — no-op. Дубль по URL или sha256 содержимого
- * пропускается, берётся следующий кандидат. Возвращает строку images или null.
+ * Pick and download a picture for a draft. A repeat is a no-op. A duplicate by URL or by content sha256
+ * is skipped, and the next candidate is taken. Returns an images row or null.
  */
 export async function attachImage(store, draft, { fetchImpl = fetch, dir = IMAGES_DIR, budgetMs = 45000, config = DEFAULT_CONFIG, render = renderCard } = {}) {
   const deadline = Date.now() + budgetMs;
@@ -232,7 +232,7 @@ async function attachPhoto(store, draft, { fetchImpl, dir, deadline }) {
   return null;
 }
 
-/** Черновикам «ждёт одобрения» без картинки — подбор. Ошибка одного не мешает остальным. */
+/** Drafts «ждёт одобрения» (awaiting approval) without a picture — picking. An error for one does not stop the others. */
 export async function attachPending(store, opts = {}) {
   const rows = [];
   for (const d of store.listDrafts({ status: 'ждёт одобрения' })) {

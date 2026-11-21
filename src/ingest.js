@@ -5,7 +5,7 @@ import { gate } from './gate.js';
 import { openStore } from './store.js';
 import { attachImage } from './images.js';
 
-/** Посты {id, style, text} из пакета → ворота → таблица drafts. id поста = id события. */
+/** Posts {id, style, text} from a batch → gate → the drafts table. Post id = event id. */
 export function ingestPosts(store, posts) {
   if (!Array.isArray(posts)) throw new Error('expected an array of posts');
   const rows = posts.map((p) => {
@@ -35,7 +35,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     store = openStore(process.env.NEWS_DB);
     const { rows, ok } = ingestPosts(store, posts);
     console.log(formatRows(rows));
-    for (const r of rows.filter((x) => x.ok && !x.skipped)) { // ошибка подбора картинки не ломает черновик
+    for (const r of rows.filter((x) => x.ok && !x.skipped)) { // a picture-picking error does not break the draft
       try {
         const d = store.getDraft(`d-${r.id}`);
         if (d?.status === 'ждёт одобрения') await attachImage(store, d);

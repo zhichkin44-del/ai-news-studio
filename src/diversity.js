@@ -1,9 +1,9 @@
 import { keys } from './cluster.js';
 
 /**
- * Группы разнообразия ленты (решение владельца 28.10): политика/война — не больше
- * двух событий в семёрке, остальные группы закрывают микс. Группа события берётся
- * из шокового класса (там она точнее), иначе — из категории ленты.
+ * Feed diversity groups (owner's decision of 28.10): politics/war — no more than
+ * two events in a seven; the other groups make up the mix. An event's group is taken
+ * from its shock class (more precise there), otherwise from the feed category.
  */
 export const POLITICS = 'политика/война';
 export const WORLD_EMERGENCY = 'мир и ЧП';
@@ -24,9 +24,9 @@ export const CATEGORY_SECTION = {
 export const sectionOf = (event) => event.section ?? CATEGORY_SECTION[event.category] ?? WORLD_EMERGENCY;
 
 /**
- * Группа события при отборе. Общий шоковый класс «мир и ЧП» (погибшие, жертвы) не должен
- * прятать войну/политику от квоты: если тема аудитории — war/russia, группа — политика/война.
- * Специальные группы шока (наука, ИИ, экономика, знаменитости) сохраняются.
+ * Event group at selection time. The general shock class «мир и ЧП» (world and emergencies: dead, casualties) must not
+ * hide war/politics from the quota: if the audience topic is war/russia, the group is politics/war.
+ * Special shock groups (science, AI, economy, celebrities) are kept.
  */
 export function sectionFor({ shockGroup, audienceCategory, feedCategory } = {}) {
   const topic = CATEGORY_SECTION[audienceCategory];
@@ -34,21 +34,21 @@ export function sectionFor({ shockGroup, audienceCategory, feedCategory } = {}) 
   return shockGroup ?? topic ?? CATEGORY_SECTION[feedCategory] ?? WORLD_EMERGENCY;
 }
 
-/** Оценка события для топа и дайджеста: пиковая, иначе текущая. */
+/** Event score for the top and the digest: peak, otherwise current. */
 export const peakOf = (event) => Number(event.peak_score ?? event.score ?? 0);
 
 const tie = (a, b) => String(a.first_seen ?? '').localeCompare(String(b.first_seen ?? '')) || String(a.id ?? '').localeCompare(String(b.id ?? ''));
 const ranked = (events, scoreOf) => [...events].sort((a, b) => scoreOf(b) - scoreOf(a) || tie(a, b));
 
-/** Ключи потолков, отдельные от секции: спорт и шоу-бизнес живут в одной секции, но режутся порознь. */
+/** Ceiling keys, separate from the section: sport and showbiz share one section but are capped separately. */
 export const SPORT = 'спорт';
 export const SHOWBIZ = 'шоу-бизнес';
 const ceilingKey = (e) => (e.category === 'sport' ? SPORT : e.category === 'celebrity' ? SHOWBIZ : sectionOf(e));
 
 /**
- * Потолки на группу в топе дня (score.config.json → diversity.ceilings), strict-режим:
- * { sport, showbiz, topic, politics, sport_sensation: [regex-маркеры] }. Спорт без маркера
- * сенсации (рекорд, скандал, финал, сверхсумма) в топ не идёт вовсе.
+ * Per-group ceilings in the day's top (score.config.json → diversity.ceilings), strict mode:
+ * { sport, showbiz, topic, politics, sport_sensation: [regex markers] }. Sport without a sensation marker
+ * (record, scandal, final, mega-sum) does not make it into the top at all.
  */
 export function ceilingRules(ceilings, politics = POLITICS) {
   if (!ceilings) return null;
@@ -62,8 +62,8 @@ export function ceilingRules(ceilings, politics = POLITICS) {
 }
 
 /**
- * Один и тот же сюжет в разных формулировках: общее число (не год) и хотя бы одна общая
- * сущность (основа слова ≥ 4 знаков), либо почти совпадающие наборы слов (Жаккар ≥ 0,6).
+ * The same story in different wording: a shared number (not a year) and at least one shared
+ * entity (word stem of ≥ 4 characters), or nearly identical word sets (Jaccard ≥ 0.6).
  */
 export function sameStory(a, b) {
   const ka = keys(a.title ?? '');
@@ -79,10 +79,10 @@ export function sameStory(a, b) {
 }
 
 /**
- * Микс из `limit` событий: не больше `perGroup` одной группы; если есть событие вне
- * политики с оценкой ≥ minScore — минимум `minOutside` вне политики (политику при
- * необходимости вытесняем). Возвращает выбранные события в порядке убывания оценки.
- * С `ceilings` (strict) потолки по группам заменяют perGroup; свободные места остаются пустыми.
+ * A mix of `limit` events: no more than `perGroup` from one group; if there is an event outside
+ * politics with score ≥ minScore — at least `minOutside` outside politics (politics is displaced if needed).
+ * Returns the chosen events in descending score order.
+ * With `ceilings` (strict) the per-group ceilings replace perGroup; free slots stay empty.
  */
 export function pickDiverse(events, {
   limit = 7, perGroup = 2, minOutside = 3, minScore = 40, politics = POLITICS, scoreOf = peakOf, strict = false, ceilings = null, politicsShare = 1 / 3,
@@ -93,8 +93,8 @@ export function pickDiverse(events, {
   const capOf = rules ? rules.capOf : () => perGroup;
   const chosen = [];
   const counts = new Map();
-  // жёсткая квота: политики не больше limit - minOutside, пустые места не добиваем войной
-  // и не больше трети (политика/война одинаково в топе и дайджестах)
+  // hard quota: politics no more than limit - minOutside; empty slots are not filled with war
+  // and not more than a third (politics/war treated the same in the top and in the digests)
   const politicsCap = strict ? Math.max(0, Math.min(limit - Math.min(minOutside, limit), Math.floor(limit * politicsShare))) : Infinity;
   const take = (e) => {
     chosen.push(e);

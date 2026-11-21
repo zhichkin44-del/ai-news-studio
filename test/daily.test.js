@@ -12,7 +12,7 @@ const okSend = () => {
 };
 const SECTIONS = ['war', 'science', 'tech', 'economy', 'accidents', 'space', 'health', 'culture'];
 
-/** События с top_of_day и черновиками; first_seen — за ночь до 08:00 МСК 29.10 (05:00Z). */
+/** Events with top_of_day and drafts; first_seen — the night before 08:00 MSK on 29.10 (05:00Z). */
 function fixture(n, { firstSeen = '2026-10-29T01:00:00.000Z', texts = {}, status = 'одобрен', sources = 3, breaking = 0, topOfDay = 1, category } = {}) {
   const s = openStore(':memory:');
   for (let i = 1; i <= n; i++) {
@@ -26,23 +26,23 @@ function fixture(n, { firstSeen = '2026-10-29T01:00:00.000Z', texts = {}, status
   return s;
 }
 
-test('время дайджеста по МСК и граница суток', () => {
+test('digest time in MSK and the day boundary', () => {
   const cfg = dailyConfig();
   assert.equal(cfg.morning, '08:00');
-  assert.equal(dueDigest(Date.parse('2026-10-29T04:59:00Z'), cfg), null); // 07:59 МСК
-  assert.equal(dueDigest(Date.parse('2026-10-29T05:00:00Z'), cfg).kind, 'утро'); // 08:00 МСК
+  assert.equal(dueDigest(Date.parse('2026-10-29T04:59:00Z'), cfg), null); // 07:59 MSK
+  assert.equal(dueDigest(Date.parse('2026-10-29T05:00:00Z'), cfg).kind, 'утро'); // 08:00 MSK
   assert.equal(dueDigest(Date.parse('2026-10-29T06:59:00Z'), cfg).kind, 'утро');
-  assert.equal(dueDigest(Date.parse('2026-10-29T07:00:00Z'), cfg), null); // окно 120 минут закрыто
-  assert.equal(dueDigest(Date.parse('2026-10-29T18:00:00Z'), cfg).kind, 'вечер'); // 21:00 МСК
-  // граница суток: 21:30Z 28.10 — уже 29.10 по Москве
+  assert.equal(dueDigest(Date.parse('2026-10-29T07:00:00Z'), cfg), null); // the 120-minute window has closed
+  assert.equal(dueDigest(Date.parse('2026-10-29T18:00:00Z'), cfg).kind, 'вечер'); // 21:00 MSK
+  // day boundary: 21:00Z on 28.10 — already 29.10 in Moscow
   assert.equal(mskDay(Date.parse('2026-10-28T20:59:00Z')), '2026-10-28');
   assert.equal(mskDay(Date.parse('2026-10-28T21:00:00Z')), '2026-10-29');
   assert.equal(dueDigest(Date.parse('2026-10-28T21:00:00Z'), { ...cfg, morning: '00:00' }).day, '2026-10-29');
-  // время правится конфигом без кода
+  // the time is adjusted by config, without code changes
   assert.equal(dueDigest(Date.parse('2026-10-29T06:00:00Z'), dailyConfig({ morning: '09:00' })).kind, 'утро');
 });
 
-test('утренний дайджест: до 7 пунктов, без ссылок, ≤1024, один раз в сутки', async () => {
+test('morning digest: up to 7 items, no links, ≤1024, once a day', async () => {
   const s = fixture(8);
   const { send, calls } = okSend();
   const at = utc('2026-10-29T05:00:00Z');
@@ -59,22 +59,22 @@ test('утренний дайджест: до 7 пунктов, без ссыл�
   assert.equal(again.published, false);
   assert.match(again.reason, /уже выпущен/);
   assert.equal(calls.length, 1);
-  // на следующие сутки — снова можно
+  // the next day — allowed again
   const s2 = fixture(4, { firstSeen: '2026-10-30T01:00:00.000Z' });
   assert.equal((await runDaily({ store: s2, chat: '@ch', send, now: utc('2026-10-30T05:00:00Z'), sleep: noSleep })).published, true);
 });
 
-test('дайджест идёт мимо часового лимита обычных постов', async () => {
+test('the digest goes past the hourly limit for regular posts', async () => {
   const s = fixture(4);
   const { send } = okSend();
   const t = '2026-10-29T05:00:00.000Z';
-  // три обычных поста только что — лимит в час исчерпан
+  // three regular posts just now — the hourly limit is used up
   for (const id of ['d-e1', 'd-e2', 'd-e3']) s.markPublished(id, 1, t);
   const r = await runDaily({ store: s, chat: '@ch', send, now: utc(t), sleep: noSleep });
   assert.equal(r.published, true);
 });
 
-test('квота по темам: не больше per_group пунктов одной темы', async () => {
+test('topic quota: no more than per_group items from one topic', async () => {
   const s = fixture(6, { category: 'war' });
   s.upsert({ id: 'x1', title: 'Наука', firstSeen: '2026-10-29T01:00:00.000Z', independentSources: 2, score: 50, reasons: [], needsOwner: false, sources: [{ source: 'x', link: 'https://example.com/x1', published: '2026-10-29T01:00:00.000Z' }] });
   s.setCategory('x1', 'science');
@@ -83,15 +83,15 @@ test('квота по темам: не больше per_group пунктов о�
   const { send, calls } = okSend();
   const r = await runDaily({ store: s, chat: '@ch', send, now: utc('2026-10-29T05:00:00Z'), sleep: noSleep });
   assert.equal(r.published, true);
-  assert.equal(r.items.length, 3); // 2 войны + 1 наука
+  assert.equal(r.items.length, 3); // 2 war + 1 science
   assert.ok(calls[0].params.text.includes('Учёные нашли новое'));
 });
 
-test('вечерний «Итог дня»: 5 пунктов и строка «что следить завтра», утренние не повторяются', async () => {
+test('evening «Итог дня» (day summary): 5 items and the «что следить завтра» (what to watch tomorrow) line; morning items are not repeated', async () => {
   const s = fixture(12, { firstSeen: '2026-10-29T06:00:00.000Z' });
   const { send, calls } = okSend();
   const m = await runDaily({ store: s, chat: '@ch', send, now: utc('2026-10-29T05:00:00Z'), sleep: noSleep });
-  assert.equal(m.published, false); // события появились после 08:00 — к утру их нет
+  assert.equal(m.published, false); // events appeared after 08:00 — there are none by the morning
   const e = await runDaily({ store: s, chat: '@ch', send, now: utc('2026-10-29T18:00:00Z'), sleep: noSleep });
   assert.equal(e.published, true);
   const text = calls[0].params.text;
@@ -101,13 +101,13 @@ test('вечерний «Итог дня»: 5 пунктов и строка «�
   assert.ok(text.length <= 1024);
 });
 
-test('пустой день: меньше трёх подходящих — дайджест не публикуется, бронь не занята', async () => {
+test('empty day: fewer than three eligible — the digest is not published, the reservation is not taken', async () => {
   const { send, calls } = okSend();
   const s = fixture(2);
   let r = await runDaily({ store: s, chat: '@ch', send, now: utc('2026-10-29T05:00:00Z'), sleep: noSleep });
   assert.equal(r.published, false);
   assert.match(r.reason, /меньше 3/);
-  // не в топе дня — тоже не подходят
+  // not in the top of the day — not eligible either
   const s2 = fixture(5, { topOfDay: 0 });
   r = await runDaily({ store: s2, chat: '@ch', send, now: utc('2026-10-29T05:00:00Z'), sleep: noSleep });
   assert.equal(r.published, false);
@@ -115,11 +115,11 @@ test('пустой день: меньше трёх подходящих — да
   assert.equal(s.hasBroadcast('утро', '2026-10-29'), false);
 });
 
-test('ворота: пункт со ссылкой или лентой не попадает; сломанная отправка снимает бронь', async () => {
+test('gate: an item with a link or a feed name is excluded; a broken send releases the reservation', async () => {
   const s = fixture(4, { texts: { 1: 'Смотрите на https://example.com/1 сегодня.', 2: 'Об этом пишет BBC сегодня.' } });
   const { send, calls } = okSend();
   let r = await runDaily({ store: s, chat: '@ch', send, now: utc('2026-10-29T05:00:00Z'), sleep: noSleep });
-  assert.equal(r.published, false); // осталось 2 чистых пункта
+  assert.equal(r.published, false); // 2 clean items left
   assert.equal(calls.length, 0);
   const s2 = fixture(4);
   const down = async () => { throw Object.assign(new Error('bad'), { status: 400 }); };
@@ -143,7 +143,7 @@ test('leadOf: первая фраза без эмодзи; короткая до
   assert.equal(leadOf('Коротко. Ещё одна фраза тут.'), 'Коротко. Ещё одна фраза тут.');
 });
 
-test('«срочно»: breaking=1, ≥3 независимых издателей, одобренный черновик; с шапкой', async () => {
+test('«срочно» (urgent): breaking=1, ≥3 independent publishers, an approved draft; with the header', async () => {
   const now = utc('2026-10-29T01:30:00Z');
   const { send, calls } = okSend();
   const s = fixture(1, { breaking: 1, sources: 3 });
@@ -151,25 +151,25 @@ test('«срочно»: breaking=1, ≥3 независимых издателе
   assert.equal(r.published.length, 1);
   assert.ok(calls[0].params.text.startsWith('⚡️ СРОЧНО\n\n'));
   assert.equal(s.getDraft('d-e1').status, 'опубликован');
-  // без второго независимого издателя (2 < 3) срочным не бывает
+  // without a second independent publisher (2 < 3) it is never urgent
   const s2 = fixture(1, { breaking: 1, sources: 2 });
   assert.equal((await runBreaking({ store: s2, chat: '@ch', send, now, sleep: noSleep })).published.length, 0);
-  // не breaking
+  // not breaking
   const s3 = fixture(1, { breaking: 0, sources: 5 });
   assert.equal((await runBreaking({ store: s3, chat: '@ch', send, now, sleep: noSleep })).published.length, 0);
-  // не одобрен
+  // not approved
   const s4 = fixture(1, { breaking: 1, sources: 4, status: 'ждёт одобрения' });
   assert.equal((await runBreaking({ store: s4, chat: '@ch', send, now, sleep: noSleep })).published.length, 0);
   assert.equal(calls.length, 1);
 });
 
-test('«срочно»: не чаще раза в 30 минут, не более 6 в сутки, повтора нет', async () => {
+test('«срочно» (urgent): no more often than once per 30 minutes, no more than 6 per day, no repeats', async () => {
   const s = fixture(8, { breaking: 1, sources: 3, firstSeen: '2026-10-29T01:00:00.000Z' });
   const { send, calls } = okSend();
   const cfg = { breaking: { max_age_minutes: 100000 } };
   const at = (min) => new Date(Date.parse('2026-10-29T01:00:00Z') + min * 60_000);
   let r = await runBreaking({ store: s, chat: '@ch', send, config: cfg, now: at(0), sleep: noSleep });
-  assert.equal(r.published.length, 1); // за проход — одно
+  assert.equal(r.published.length, 1); // one per pass
   assert.equal(r.stopped, 'пауза');
   r = await runBreaking({ store: s, chat: '@ch', send, config: cfg, now: at(29), sleep: noSleep });
   assert.equal(r.published.length, 0);
@@ -180,24 +180,24 @@ test('«срочно»: не чаще раза в 30 минут, не более
   r = await runBreaking({ store: s, chat: '@ch', send, config: cfg, now: at(30 * 6), sleep: noSleep });
   assert.equal(r.published.length, 0);
   assert.equal(r.stopped, 'лимит в сутки');
-  // следующие сутки по МСК (00:00 МСК = 21:00Z) — снова можно
+  // the next day in MSK (00:00 MSK = 21:00Z) — allowed again
   r = await runBreaking({ store: s, chat: '@ch', send, config: cfg, now: new Date('2026-10-29T21:00:00Z'), sleep: noSleep });
   assert.equal(r.published.length, 1);
   assert.equal(new Set(calls.map((c) => c.params.text)).size, 7);
 });
 
-test('«срочно»: вне часовой очереди — лимит обычных постов не расходуется; устаревшее не уходит; ворота', async () => {
+test('«срочно» (urgent): outside the hourly queue — the regular-post limit is not used; stale items do not go out; gate', async () => {
   const s = fixture(1, { breaking: 1, sources: 3 });
   const { send, calls } = okSend();
   const now = utc('2026-10-29T01:30:00Z');
   await runBreaking({ store: s, chat: '@ch', send, now, sleep: noSleep });
   assert.equal(s.publishedTimes().length, 0);
-  // старше max_age_minutes
+  // older than max_age_minutes
   const old = fixture(1, { breaking: 1, sources: 3 });
   const r = await runBreaking({ store: old, chat: '@ch', send, now: utc('2026-10-29T10:00:00Z'), sleep: noSleep });
   assert.equal(r.published.length, 0);
   assert.equal(r.skipped[0].reason, 'устарело');
-  // текст со ссылкой — ворота, ничего не отправлено, бронь снята
+  // text with a link — gate; nothing sent; the reservation is released
   const bad = fixture(1, { breaking: 1, sources: 3, texts: { 1: 'Смотрите https://example.com/1 сейчас.' } });
   const rb = await runBreaking({ store: bad, chat: '@ch', send, now, sleep: noSleep });
   assert.equal(rb.published.length, 0);

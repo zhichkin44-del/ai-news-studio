@@ -2,12 +2,12 @@ import { cluster } from './cluster.js';
 
 export { cluster };
 
-/** Проверка по паспорту (разд. 9): ≥2 независимых источников — подтверждено. */
+/** Check against the passport (section 9): ≥2 independent sources — confirmed. */
 export function verify(sourceCount) {
   return sourceCount >= 2 ? 'подтверждено' : 'не подтверждено';
 }
 
-/** Оценка: число источников × свежесть (полураспад 12 ч). */
+/** Score: number of sources × freshness (half-life 12 h). */
 export function score(c, now = Date.now()) {
   const ageH = c.newest ? Math.max(0, (now - Date.parse(c.newest)) / 3.6e6) : 48;
   return c.sourceCount * Math.pow(0.5, ageH / 12);

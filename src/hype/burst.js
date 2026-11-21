@@ -10,7 +10,7 @@ function aliasMap(config) {
   return aliasCache.get(config);
 }
 
-/** Ключевые слова записи (основы слов и числа ≥ 4 знаков); у сигналов в текст входит и summary — там заголовки связанных новостей. */
+/** Record keywords (word stems and numbers of ≥ 4 characters); for signals the text also includes the summary — it holds the headlines of related news. */
 export function tokensOf(item, isSignal, config = BURST_CONFIG) {
   const alias = aliasMap(config);
   const out = new Set();
@@ -21,7 +21,7 @@ export function tokensOf(item, isSignal, config = BURST_CONFIG) {
   return out;
 }
 
-/** Время записи для скорости: когда это опубликовано (published), иначе когда радар увидел. */
+/** Record time for speed: when it was published (published), otherwise when the radar saw it. */
 export function timeOf(item, now) {
   const p = Date.parse(item.published ?? '');
   const f = Date.parse(item.first_seen ?? '');
@@ -36,18 +36,18 @@ const jaccard = (a, b) => {
 };
 
 /**
- * Всплеск: слово (основа) встретилось в последний час в min_recent+ записях и это в min_ratio раз чаще,
- * чем в среднем за час остальных суток; тема подтверждена записями min_types+ РАЗНЫХ видов
- * (media — ленты СМИ, reddit, trends, wikipedia, bluesky) за type_window_hours.
- * items: строки items { id, source, title, summary, published, first_seen }; kinds: id источника → вид сигнала (нет в карте = media).
- * known: заголовки событий, уже стоящих в топе: тема, чьи слова в них уже есть, не «новая».
- * Возвращает [{ tokens, ratio, recent, perHour, types, items, mediaItems, signalItems }], сильнейшие первыми.
+ * Spike: a word (stem) appeared in min_recent+ records in the last hour, and that is min_ratio times more often
+ * than on average per hour over the rest of the day; the topic is confirmed by records of min_types+ DIFFERENT kinds
+ * (media — media feeds, reddit, trends, wikipedia, bluesky) within type_window_hours.
+ * items: rows of items { id, source, title, summary, published, first_seen }; kinds: source id → signal kind (not in the map = media).
+ * known: headlines of events already in the top: a topic whose words already appear in them is not "new".
+ * Returns [{ tokens, ratio, recent, perHour, types, items, mediaItems, signalItems }], strongest first.
  */
 export function detectBursts(items, { now = Date.now(), kinds = {}, known = [], config = BURST_CONFIG } = {}) {
   const from = now - config.window_hours * HOUR;
   const recentFrom = now - config.recent_minutes * 60000;
   const typeFrom = now - config.type_window_hours * HOUR;
-  // база моложе min_history_hours: ленты хранят лишь последние часы, «обычная скорость» занижена и любая тема выглядит всплеском
+  // the database is younger than min_history_hours: feeds keep only the last hours, the "normal speed" is underestimated and any topic looks like a spike
   const firstSeen = items.map((i) => Date.parse(i.first_seen ?? '')).filter(Number.isFinite);
   if (!firstSeen.length || now - Math.min(...firstSeen) < (config.min_history_hours ?? 0) * HOUR) return [];
   const rows = [];
@@ -63,7 +63,7 @@ export function detectBursts(items, { now = Date.now(), kinds = {}, known = [], 
   const baseHours = Math.max(1, config.window_hours - config.recent_minutes / 60);
   const cands = [];
   for (const [token, idx] of byToken) {
-    if (idx.length > config.max_df_share * rows.length && idx.length > 50) continue; // слишком общее слово
+    if (idx.length > config.max_df_share * rows.length && idx.length > 50) continue; // too generic a word
     const recent = idx.filter((i) => rows[i].t > recentFrom).length;
     if (recent < config.min_recent) continue;
     const perHour = (idx.length - recent) / baseHours;
@@ -91,7 +91,7 @@ export function detectBursts(items, { now = Date.now(), kinds = {}, known = [], 
   for (const tp of topics) {
     const mem = [...tp.set].map((i) => rows[i]);
     const types = [...new Set(mem.map((r) => r.kind))].sort();
-    if (types.length < config.min_types || tp.tokens.length < (config.min_tokens ?? 1)) continue; // одно общее слово («вопрос», «высказал») — не тема
+    if (types.length < config.min_types || tp.tokens.length < (config.min_tokens ?? 1)) continue; // one generic word («вопрос» (question), «высказал» (said)) is not a topic
     const inTop = knownTokens.some((kt) => {
       const hit = tp.tokens.filter((t) => kt.has(t)).length;
       return hit >= Math.min(2, tp.tokens.length) && hit / tp.tokens.length >= 0.5;
@@ -108,7 +108,7 @@ export function detectBursts(items, { now = Date.now(), kinds = {}, known = [], 
   return out.sort((a, b) => b.types.length * b.ratio - a.types.length * a.ratio || b.recent - a.recent).slice(0, config.max_events);
 }
 
-/** Заголовок события из всплеска: запись СМИ, в которой больше слов темы (раньше — выше), иначе сильнейший сигнал. */
+/** Event headline from a spike: a media record containing more of the topic's words (earlier is higher), otherwise the strongest signal. */
 export function burstTitle(burst, config = BURST_CONFIG) {
   const cover = (it, sig) => [...tokensOf(it, sig, config)].filter((t) => burst.tokens.includes(t)).length;
   const pick = (list, sig) => [...list].sort((a, b) => cover(b, sig) - cover(a, sig) || String(a.published ?? '').localeCompare(String(b.published ?? '')) || a.id.localeCompare(b.id))[0];

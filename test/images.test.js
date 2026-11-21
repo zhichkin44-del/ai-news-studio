@@ -7,12 +7,12 @@ import { parseFeed, parseMediaImage } from '../src/collect.js';
 import { openStore } from '../src/store.js';
 import { parseOgImage, parseCommons, checkLicense, keyNames, sniffImage, pickImage, attachImage as attachImageCard, attachPending as attachPendingCard, formatTable } from '../src/images.js';
 
-// эти тесты про фото; карточки (card_mode) проверяет card.test.js
+// these tests cover photos; cards (card_mode) are checked by card.test.js
 const OFF = { card_mode: 'off' };
 const attachImage = (store, draft, o = {}) => attachImageCard(store, draft, { config: OFF, ...o });
 const attachPending = (store, o = {}) => attachPendingCard(store, { config: OFF, ...o });
 
-// минимальный PNG 800×600 (заголовок достаточен для разбора размера)
+// minimal PNG 800×600 (the header is enough to parse the size)
 const png = (w = 800, h = 600, tail = 'a') => {
   const b = Buffer.alloc(40);
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b);
@@ -21,7 +21,7 @@ const png = (w = 800, h = 600, tail = 'a') => {
 };
 const imgRes = (buf, type = 'image/png') => new Response(buf, { headers: { 'content-type': type } });
 
-test('media-теги ленты: content / thumbnail / enclosure, не видео', () => {
+test('feed media tags: content / thumbnail / enclosure, not video', () => {
   assert.equal(parseMediaImage('<media:content url="http://x/a.jpg" medium="image" width="100"/><media:content url="http://x/b.jpg" medium="image" width="600"/>'), 'http://x/b.jpg');
   assert.equal(parseMediaImage('<media:thumbnail url="http://x/t.jpg"/>'), 'http://x/t.jpg');
   assert.equal(parseMediaImage('<enclosure url="http://x/p.png?a=1&amp;b=2" type="image/png" length="1"/>'), 'http://x/p.png?a=1&b=2');
@@ -30,13 +30,13 @@ test('media-теги ленты: content / thumbnail / enclosure, не виде�
   assert.equal(items[0].image, 'http://x/t.jpg');
 });
 
-test('og:image: относительная ссылка, разный порядок атрибутов', () => {
+test('og:image: relative link, attributes in any order', () => {
   assert.equal(parseOgImage('<head><meta content="/img/o.jpg" property="og:image"></head>', 'https://site.ru/news/1'), 'https://site.ru/img/o.jpg');
   assert.equal(parseOgImage('<meta name="twitter:image" content="https://c/t.jpg">', 'https://a/'), 'https://c/t.jpg');
   assert.equal(parseOgImage('<meta property="og:title" content="x">', 'https://a/'), null);
 });
 
-test('лицензии: открытые проходят, NC/ND/GFDL и без автора у CC BY — нет', () => {
+test('licenses: open ones pass; NC/ND/GFDL and CC BY without an author do not', () => {
   assert.equal(checkLicense('CC0', null).ok, true);
   assert.equal(checkLicense('Public domain', null).ok, true);
   assert.equal(checkLicense('CC BY-SA 4.0', 'Иван').ok, true);
@@ -58,7 +58,7 @@ const commonsJson = {
   } },
 };
 
-test('ответ Commons: открытая лицензия + автор, размер, формат', () => {
+test('Commons response: open license + author, size, format', () => {
   const r = parseCommons(commonsJson);
   assert.deepEqual(r.map((x) => x.title), ['File:A.jpg', 'File:E.jpg']);
   assert.equal(r[0].author, 'Анна Петрова');
@@ -67,13 +67,13 @@ test('ответ Commons: открытая лицензия + автор, раз
   assert.equal(r[0].width, 1280);
 });
 
-test('ключевые имена из заголовка', () => {
+test('key names from the headline', () => {
   assert.deepEqual(keyNames('Президент Франции Макрон прибыл в Берлин на переговоры'), ['Франции Макрон', 'Берлин']);
   assert.deepEqual(keyNames('в городе прошёл митинг'), []);
-  assert.deepEqual(keyNames('Макрон прибыл в город'), ['Макрон']); // имя в начале заголовка
+  assert.deepEqual(keyNames('Макрон прибыл в город'), ['Макрон']); // a name at the start of the headline
 });
 
-test('бюджет времени исчерпан — в сеть не ходим, черновик остаётся без картинки', async () => {
+test('time budget exhausted — no network calls; the draft stays without a picture', async () => {
   const store = setup();
   let calls = 0;
   const f = async () => { calls++; throw new Error('сети нет'); };
@@ -81,14 +81,14 @@ test('бюджет времени исчерпан — в сеть не ходи
   assert.equal(calls, 0);
 });
 
-test('размер PNG и JPEG по заголовку', () => {
+test('PNG and JPEG size from the header', () => {
   assert.deepEqual(sniffImage(png(1024, 768)), { ext: 'png', width: 1024, height: 768 });
   const jpg = Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0xe0, 0x02, 0x80, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   assert.deepEqual(sniffImage(jpg), { ext: 'jpg', width: 640, height: 480 });
   assert.equal(sniffImage(Buffer.from('<html>')), null);
 });
 
-test('pickImage: лента → og → Commons', async () => {
+test('pickImage: feed → og → Commons', async () => {
   const f = async (u) => {
     const s = String(u);
     if (s.includes('commons.wikimedia.org')) return Response.json(commonsJson);
@@ -113,7 +113,7 @@ function setup() {
   return store;
 }
 
-test('attachImage: скачивает, пишет в images, повтор не плодит дубли', async () => {
+test('attachImage: downloads, writes to images; a repeat creates no duplicates', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'img-'));
   const store = setup();
   let calls = 0;
@@ -126,27 +126,27 @@ test('attachImage: скачивает, пишет в images, повтор не �
   assert.match(r.file, /[0-9a-f]{64}\.png$/);
   const n = calls;
   await attachImage(store, d, { fetchImpl: f, dir });
-  assert.equal(calls, n); // повтор не ходит в сеть
+  assert.equal(calls, n); // a repeat does not hit the network
   assert.equal((await readdir(dir)).length, 1);
   assert.equal(store.eventMedia('e1')[0].image, 'https://feed/1.png');
 });
 
-test('дубль по sha256 и по URL пропускается; не-картинка и >5 МБ отвергаются', async () => {
+test('a duplicate by sha256 and by URL is skipped; a non-picture and >5 MB are rejected', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'img-'));
   const store = setup();
   const same = png(800, 600, 'same');
   const f = async () => imgRes(same);
   assert.ok(await attachImage(store, store.getDraft('d-e1'), { fetchImpl: f, dir }));
-  // у второго черновика те же байты под другим URL → дубль по sha256, других кандидатов нет
+  // the second draft has the same bytes under another URL → a sha256 duplicate, no other candidates
   assert.equal(await attachImage(store, store.getDraft('d-e2'), { fetchImpl: async (u) => (String(u).includes('art/') ? new Response('') : imgRes(same)), dir }), null);
-  // тот же URL уже занят
+  // the same URL is already taken
   store.addItems([{ id: 's:3', source: 's', title: 'x', link: 'https://art/2', image: 'https://feed/1.png' }]);
   assert.equal(await attachImage(store, store.getDraft('d-e2'), { fetchImpl: async () => new Response('<html>', { headers: { 'content-type': 'text/html' } }), dir }), null);
   const big = Buffer.concat([png(), Buffer.alloc(5 * 1024 * 1024)]);
   assert.equal(await attachImage(store, store.getDraft('d-e2'), { fetchImpl: async () => imgRes(big), dir }), null);
 });
 
-test('attachPending: таблица без ссылок, ошибка одного не мешает', async () => {
+test('attachPending: table without links; one error does not stop the others', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'img-'));
   const store = setup();
   const f = async (u) => {

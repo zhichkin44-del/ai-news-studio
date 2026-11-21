@@ -4,8 +4,8 @@ export const DEFAULT_AUDIENCE = JSON.parse(readFileSync(new URL('./audience.json
 
 const norm = (s) => ` ${String(s ?? '').toLowerCase().replace(/ё/g, 'е')} `;
 const cache = new Map();
-// триггер — с начала слова; конец слова закрывается в самом триггере.
-// \w в JS — только латиница, поэтому в триггерах он читается как «любая буква/цифра» (окончания русских слов)
+// A trigger matches from the start of a word; the word ending is covered by the trigger itself.
+// In JS, \w matches only Latin letters, so in triggers it reads as "any letter/digit" (Russian word endings).
 const rx = (p) => {
   if (!cache.has(p)) cache.set(p, new RegExp(`(?<![\\p{L}\\p{N}])(?:${p.replace(/\\w/g, '[\\p{L}\\p{N}_]')})`, 'u'));
   return cache.get(p);
@@ -13,10 +13,10 @@ const rx = (p) => {
 const hit = (text, list = []) => list.some((p) => rx(p).test(text));
 
 /**
- * «Шок» — насколько новость цепляет: класс из profile.shock (вес + редкость триггера),
- * масштаб (числа/жертвы) и подтверждение независимыми источниками. Без подтверждения
- * (2+ источника или ведущая лента) шок не начисляется: слух не должен взрывать ленту.
- * Чистая функция. Возвращает { points, reasons[], classes[], group, confirmed }.
+ * "Shock" — how strongly the news hits: a class from profile.shock (weight + trigger rarity),
+ * scale (numbers/casualties) and confirmation by independent sources. Without confirmation
+ * (2+ sources or a lead feed) no shock is awarded: a rumor must not flood the feed.
+ * Pure function. Returns { points, reasons[], classes[], group, confirmed }.
  */
 export function shockScore(event, profile = DEFAULT_AUDIENCE) {
   const shock = profile.shock;
@@ -45,12 +45,12 @@ export function shockScore(event, profile = DEFAULT_AUDIENCE) {
 }
 
 /**
- * Релевантность аудитории по профилю. Чистая функция.
- * event: { title, summary?, ru? } — ru: есть русскоязычный источник (иначе по кириллице в заголовке).
- * Возвращает { points, topic, category, reasons[] }.
+ * Audience relevance by profile. Pure function.
+ * event: { title, summary?, ru? } — ru: a Russian-language source exists (otherwise detected by Cyrillic in the title).
+ * Returns { points, topic, category, reasons[] }.
  */
 export function audienceScore(event, profile = DEFAULT_AUDIENCE) {
-  const text = norm(event.title); // только заголовок: в описаниях «Украина», «армия» и т. п. попадаются в чём угодно
+  const text = norm(event.title); // title only: words like "Ukraine" or "army" show up in descriptions in any context
   const reasons = [];
   const hits = profile.topics.filter((t) => hit(text, t.triggers)).sort((a, b) => b.weight - a.weight);
   let points = 0;
@@ -61,7 +61,7 @@ export function audienceScore(event, profile = DEFAULT_AUDIENCE) {
     const extra = Math.min((hits.length - 1) * profile.extra_topic, profile.extra_cap);
     points = hits[0].weight + extra;
     reasons.push(`аудитория: «${topic}» → ${hits[0].weight}${extra ? ` (+${extra} за ещё ${hits.length - 1} тем)` : ''}`);
-    // слабая тема (ниже порога ru_bonus) категорийный вес не получает
+    // a weak topic (below the ru_bonus threshold) does not get the category weight
     const cw = hits[0].weight >= (profile.ru_bonus_min_weight ?? 0) ? profile.category_weights?.[category] ?? 0 : 0;
     if (cw) { points += cw; reasons.push(`аудитория: категория «${category}» → ${cw}`); }
     const ru = event.ru ?? /[а-яё]/i.test(event.title ?? '');

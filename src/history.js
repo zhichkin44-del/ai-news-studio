@@ -1,6 +1,6 @@
-// Исторические справки и годовщины — не новости (владелец 30.10: «30 октября 1961 года СССР испытал Царь-бомбу… для чего она? не связана с реальностью»).
-// Проверяется заголовок события: «65 лет назад», «в этот день», «годовщина», «исполнилось 80 лет», «в 1961 году …».
-// \b в JS не знает кириллицу — границы слов заданы через \p{L}.
+// Historical notes and anniversaries are not news (owner, 30.10: «30 октября 1961 года СССР испытал Царь-бомбу… для чего она? не связана с реальностью» — "On 30 October 1961 the USSR tested the Tsar Bomba… what for? not connected with reality").
+// The event headline is checked for: «65 лет назад» ("65 years ago"), «в этот день» ("on this day"), «годовщина» ("anniversary"), «исполнилось 80 лет» ("turned 80"), «в 1961 году …» ("in 1961 …").
+// JS \b does not know Cyrillic — word boundaries are set via \p{L}.
 const norm = (s) => ` ${String(s ?? '').toLowerCase().replace(/ё/g, 'е')} `;
 const B = String.raw`(?<![\p{L}\d])`;
 const E = String.raw`(?![\p{L}\d])`;

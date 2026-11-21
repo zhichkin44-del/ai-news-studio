@@ -1,7 +1,7 @@
 import { getJson, iso } from './http.js';
 
-// searchPosts у публичного API закрыт (403 без входа), поэтому берём то, что открыто без ключа:
-// getTrends (темы Bluesky с числом постов) и ленту «What's Hot» с репостами.
+// searchPosts is closed on the public API (403 without login), so we take what is open without a key:
+// getTrends (Bluesky topics with post counts) and the «What's Hot» feed with reposts.
 const TRENDS = 'https://api.bsky.app/xrpc/app.bsky.unspecced.getTrends?limit=25';
 const HOT = 'https://public.api.bsky.app/xrpc/app.bsky.feed.getFeed?feed=at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot&limit=50';
 
@@ -18,14 +18,14 @@ export function parseTrends(json, source) {
   }));
 }
 
-/** Посты ленты с числом репостов не ниже minReposts. */
+/** Feed posts with a repost count not below minReposts. */
 export function parsePosts(json, source, { minReposts = 150 } = {}) {
   const out = [];
   for (const f of json?.feed ?? []) {
     const p = f?.post;
     const text = String(p?.record?.text ?? '').replace(/\s+/g, ' ').trim();
     const reposts = Number(p?.repostCount) || 0;
-    if (!p?.uri || !text || reposts < minReposts || f.reason) continue; // f.reason — это репост в ленте, не оригинал
+    if (!p?.uri || !text || reposts < minReposts || f.reason) continue; // f.reason means a repost in the feed, not an original
     const rkey = p.uri.split('/').pop();
     out.push({
       id: `${source.id}:${p.uri}`,

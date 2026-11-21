@@ -12,7 +12,7 @@ export function decode(s) {
 function clean(s) {
   if (s == null) return '';
   const noCdata = s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (_, x) => x);
-  // сущности → теги долой → сущности внутри HTML-описания
+  // entities → strip tags → entities inside the HTML description
   return decode(decode(noCdata).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
@@ -33,7 +33,7 @@ function toIso(s) {
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
-/** Картинка записи: media:content / media:thumbnail / enclosure type=image (не видео и не аудио). */
+/** Record image: media:content / media:thumbnail / enclosure type=image (not video or audio). */
 export function parseMediaImage(block) {
   const attr = (a, n) => a.match(new RegExp(`(?:^|\\s)${n}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i'))?.slice(1).find(Boolean);
   const cands = [];
@@ -51,7 +51,7 @@ export function parseMediaImage(block) {
   return cands[0]?.url ?? null;
 }
 
-/** USGS GeoJSON (землетрясения): запись на событие; source.min_mag отсекает слабые толчки. */
+/** USGS GeoJSON (earthquakes): one record per event; source.min_mag filters out weak tremors. */
 export function parseGeoJson(text, source) {
   let data;
   try {
@@ -79,7 +79,7 @@ export function parseGeoJson(text, source) {
   return out;
 }
 
-/** Разбор RSS 2.0 / Atom (или GeoJSON, если лента отдаёт JSON) в нормализованные записи. */
+/** Parses RSS 2.0 / Atom (or GeoJSON, if the feed serves JSON) into normalized records. */
 export function parseFeed(xml, source) {
   if (source.format === 'geojson' || xml.trimStart().startsWith('{')) return parseGeoJson(xml, source);
   const isAtom = /<feed[\s>]/i.test(xml) && !/<rss[\s>]/i.test(xml);
@@ -97,7 +97,7 @@ export function parseFeed(xml, source) {
   return out;
 }
 
-/** Байты ленты в строку: charset из заголовка или XML-объявления (Газета.ру — windows-1251/cp1251). */
+/** Feed bytes to a string: charset from the header or the XML declaration (Gazeta.ru — windows-1251/cp1251). */
 export function decodeBuffer(buf, contentType = '') {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
   const fromHeader = /charset\s*=\s*["']?([\w-]+)/i.exec(contentType)?.[1];
@@ -122,7 +122,7 @@ export async function fetchFeed(source, { timeoutMs = 15000, fetchImpl = fetch }
   return parseFeed(await res.text(), source);
 }
 
-/** Собирает все ленты; ошибка одной ленты попадает в errors и не роняет сбор. */
+/** Collects all feeds; an error in one feed goes into errors and does not break the collection. */
 export async function collect(sources, { loader = fetchFeed } = {}) {
   const results = await Promise.allSettled(sources.map((s) => loader(s)));
   const items = [];

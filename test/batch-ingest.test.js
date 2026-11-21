@@ -23,14 +23,14 @@ function fixture() {
   const put = (e, status = 'отобрано') => { s.upsert(e, NOW); s.setStatus(e.id, status, null, NOW); };
   put(ev('a', { score: 80 }));
   put(ev('b', { score: 50 }));
-  put(ev('c', { independentSources: 1, score: 75, needsOwner: true })); // одно-источниковое под владельцем
-  put(ev('d', { independentSources: 1, score: 75 })); // одно-источниковое, можно
-  put(ev('e', { independentSources: 1, score: 60 })); // одно-источниковое, слабое
-  put(ev('f'), 'новое'); // не отобрано
+  put(ev('c', { independentSources: 1, score: 75, needsOwner: true })); // single-source, needs the owner
+  put(ev('d', { independentSources: 1, score: 75 })); // single-source, allowed
+  put(ev('e', { independentSources: 1, score: 60 })); // single-source, weak
+  put(ev('f'), 'новое'); // not selected
   return { dir, dbPath, s };
 }
 
-test('pickEvents: правила отбора, лимит, без ссылок', () => {
+test('pickEvents: selection rules, limit, no links', () => {
   const { s } = fixture();
   assert.deepEqual(pickEvents(s, 10).map((e) => e.id), ['a', 'd', 'b']);
   assert.deepEqual(pickEvents(s, 2).map((e) => e.id), ['a', 'd']);
@@ -40,7 +40,7 @@ test('pickEvents: правила отбора, лимит, без ссылок',
   assert.doesNotMatch(JSON.stringify(a), /http|BBC/i);
 });
 
-test('makeBatch: файлы пакета; без событий — null', async () => {
+test('makeBatch: batch files; no events — null', async () => {
   const { dir, dbPath, s } = fixture();
   s.close();
   const folder = await makeBatch({ dbPath, max: 6, dir: join(dir, 'batches'), now: new Date('2026-10-28T10:00:00Z') });
@@ -51,7 +51,7 @@ test('makeBatch: файлы пакета; без событий — null', async
   assert.equal(await makeBatch({ dbPath: join(dir, 'empty.db'), dir: join(dir, 'b2') }), null);
 });
 
-test('ingest: ворота, статусы, без дублей; событие с черновиком не попадает в пакет', () => {
+test('ingest: gate, statuses, no duplicates; an event with a draft is not put into a batch', () => {
   const { s } = fixture();
   const r = ingestPosts(s, [
     { id: 'a', style: 'сухо', text: 'В городе открыли мост.' },
@@ -62,19 +62,19 @@ test('ingest: ворота, статусы, без дублей; событие 
   assert.deepEqual(r.rows.map((x) => x.ok), [true, false, false]);
   assert.match(r.rows[1].reasons.join(), /link/);
   assert.deepEqual(s.listDrafts().map((d) => [d.event_id, d.status, d.gate_ok]), [['a', 'ждёт одобрения', true], ['b', 'отклонён кодом', false]]);
-  // повтор
+  // repeat
   const again = ingestPosts(s, [{ id: 'a', style: 'иначе', text: 'Другой текст.' }]);
   assert.equal(again.ok, true);
   assert.equal(s.listDrafts().length, 2);
   assert.equal(s.listDrafts({ status: 'ждёт одобрения' })[0].text, 'В городе открыли мост.');
-  // исправленный отклонённый заменяется
+  // a corrected rejected draft is replaced
   ingestPosts(s, [{ id: 'b', style: 'сухо', text: 'Исправленный текст.' }]);
   assert.equal(s.listDrafts().length, 2);
   assert.equal(s.listDrafts({ status: 'ждёт одобрения' }).length, 2);
   assert.deepEqual(pickEvents(s, 10).map((e) => e.id), ['d']);
 });
 
-test('drafts: смена статуса и выдача для пульта', () => {
+test('drafts: status change and output for the panel', () => {
   const { s } = fixture();
   ingestPosts(s, [{ id: 'a', style: 'сухо', text: 'Раз.' }, { id: 'b', style: 'тепло', text: 'Два.' }]);
   const [a] = pendingDrafts(s);
@@ -109,9 +109,9 @@ test('CLI: batch → ingest → drafts --json', () => {
   const d = JSON.parse(run('src/drafts.js', '--json').stdout);
   assert.equal(d.length, 1);
   assert.equal(d[0].text, 'Хороший пост.');
-  assert.equal(run('src/ingest.js', folder).status, 1); // плохой остался плохим, дублей нет
+  assert.equal(run('src/ingest.js', folder).status, 1); // the bad one stays bad, no duplicates
   assert.equal(JSON.parse(run('src/drafts.js', '--json').stdout).length, 1);
-  // событие с отклонённым кодом черновиком вернётся в пакет, с хорошим — нет
+  // an event whose draft was rejected by code returns to the batch; one with a good draft does not
   const b2 = run('src/batch.js', '--max', '6');
   assert.equal(b2.status, 0);
   const ids = JSON.parse(readFileSync(join(b2.stdout.trim(), 'events.json'), 'utf8')).map((e) => e.id);

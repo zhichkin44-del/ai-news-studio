@@ -17,7 +17,7 @@ import { openStore } from '../src/store.js';
 import { selectEvents } from '../src/select-run.js';
 import { loadSources } from '../src/collect.js';
 
-// ---------- фикстуры форматов ----------
+// ---------- format fixtures ----------
 const TRENDS_XML = `<?xml version="1.0"?><rss xmlns:ht="https://trends.google.com/trending/rss" version="2.0"><channel><title>Daily Search Trends</title>
 <item><title>oil spill brazil</title><ht:approx_traffic>2K+</ht:approx_traffic><description/><link>https://trends.google.com/trending/rss?geo=US</link>
 <pubDate>Thu, 29 Oct 2026 02:50:00 -0700</pubDate><ht:picture>https://img.example/p.jpg</ht:picture>
@@ -48,7 +48,7 @@ const BSKY_FEED = { feed: [
 
 const res = (status, body) => ({ ok: status >= 200 && status < 300, status, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) });
 
-// ---------- разбор форматов ----------
+// ---------- format parsing ----------
 test('parseTraffic: 100+, 2K+, 1,5M+', () => {
   assert.equal(parseTraffic('100+'), 100);
   assert.equal(parseTraffic('2K+'), 2000);
@@ -56,7 +56,7 @@ test('parseTraffic: 100+, 2K+, 1,5M+', () => {
   assert.equal(parseTraffic(''), 0);
 });
 
-test('google-trends: запрос, трафик, связанные новости, уникальная ссылка', () => {
+test('google-trends: query, traffic, related news, unique link', () => {
   const items = parseTrends(TRENDS_XML, { id: 'trends-us', geo: 'US' });
   assert.equal(items.length, 2);
   const [a, b] = items;
@@ -68,11 +68,11 @@ test('google-trends: запрос, трафик, связанные новост
   assert.equal(a.published, '2026-10-29T09:50:00.000Z');
   assert.equal(a.id, 'trends-us:oil spill brazil:2026-10-29');
   assert.equal(b.meta.traffic, 1500000);
-  assert.match(b.link, /trends\.google\.com\/trends\/explore\?q=lions%20depth%20chart&geo=US/); // не общая ссылка ленты
+  assert.match(b.link, /trends\.google\.com\/trends\/explore\?q=lions%20depth%20chart&geo=US/); // not the feed's shared link
   assert.notEqual(a.link, b.link);
 });
 
-test('reddit.json: score, комментарии, без закреплённых и ниже порога', () => {
+test('reddit.json: score, comments, no pinned posts and nothing below the threshold', () => {
   const src = { id: 'reddit' };
   const all = parseRedditJson(REDDIT_JSON, src);
   assert.deepEqual(all.map((i) => i.id), ['reddit:a1', 'reddit:a3']);
@@ -80,29 +80,29 @@ test('reddit.json: score, комментарии, без закреплённы�
   assert.deepEqual([all[0].meta.score, all[0].meta.comments, all[0].meta.sub], [41200, 2300, 'worldnews']);
   assert.equal(all[0].link, 'https://www.reddit.com/r/worldnews/comments/a1/oil/');
   assert.equal(all[0].published, '2026-10-14T17:46:40.000Z');
-  assert.equal(all[1].image, null); // thumbnail "self" — не картинка
+  assert.equal(all[1].image, null); // thumbnail "self" is not a picture
   assert.deepEqual(parseRedditJson(REDDIT_JSON, src, { minScore: 300 }).map((i) => i.id), ['reddit:a1']);
   assert.deepEqual(parseRedditJson('<html>blocked</html>', src), []);
 });
 
-test('reddit.rss (Atom): запасной формат без очков, порядок = место в hot', () => {
+test('reddit.rss (Atom): fallback format without points; order = place in hot', () => {
   const items = parseRedditRss(REDDIT_ATOM, { id: 'reddit' }, 'space');
   assert.equal(items.length, 2);
   assert.equal(items[0].title, 'Whale on the beach');
   assert.deepEqual([items[0].meta.sub, items[0].meta.score, items[0].meta.rank, items[1].meta.rank], ['space', null, 1, 2]);
 });
 
-test('wikipedia: служебные страницы отброшены, рост против медианы', () => {
+test('wikipedia: service pages dropped; growth against the median', () => {
   const top = parseTop(WIKI_TOP([['Main_Page', 4e6], ['Special:Search', 8e5], ['Oil_spill', 90000], ['Steady_page', 60000], ['Small', 100]]));
   assert.deepEqual(top.map((a) => a.article), ['Oil_spill', 'Steady_page', 'Small']);
   const hist = [1, 2, 3].map(() => parseTop(WIKI_TOP([['Steady_page', 55000], ['Other', 30000], ['Filler', 20000]])));
   const rows = surges(top, hist, { minViews: 20000, ratio: 3 });
-  // Oil_spill в прошлых днях не был в топе → база = порог дня (20000): 90000/20000 = 4.5; Steady_page ×1.1 — не рост
+  // Oil_spill was not in the top in past days → baseline = the day's threshold (20000): 90000/20000 = 4.5; Steady_page ×1.1 — not growth
   assert.deepEqual(rows.map((r) => [r.article, r.ratio]), [['Oil_spill', 4.5]]);
   assert.deepEqual(parseTop({}), []);
 });
 
-test('wikipedia: сбор — вчера нет (404) → берём позавчера; база из предыдущих дней', async () => {
+test('wikipedia: collection — yesterday missing (404) → take the day before; baseline from earlier days', async () => {
   const urls = [];
   const fetchImpl = async (url) => {
     urls.push(url);
@@ -117,7 +117,7 @@ test('wikipedia: сбор — вчера нет (404) → берём позав�
   assert.equal(items[0].link, 'https://en.wikipedia.org/wiki/Oil_spill');
 });
 
-test('wikipedia: 429 — пропуск без ошибки; 429 в истории — считаем по имеющемуся', async () => {
+test('wikipedia: 429 — skip without error; 429 in history — count with what is available', async () => {
   const src = { id: 'wiki-en', project: 'en.wikipedia', baseline_days: 3, min_views: 20000, ratio: 3 };
   const opts = { sleep: async () => {}, now: new Date('2026-10-29T10:00:00Z') };
   assert.deepEqual(await fetchWikipedia(src, { ...opts, fetchImpl: async () => res(429, '') }), []);
@@ -126,23 +126,23 @@ test('wikipedia: 429 — пропуск без ошибки; 429 в истори
   assert.deepEqual(items.map((i) => i.title), ['Oil spill']);
 });
 
-test('bluesky: тренды и посты с большим числом репостов', () => {
+test('bluesky: trends and posts with many reposts', () => {
   const t = parseBskyTrends(BSKY_TRENDS, { id: 'bluesky' });
   assert.equal(t.length, 1);
   assert.deepEqual([t[0].title, t[0].meta.posts, t[0].published, t[0].link], ['Oil on Brazil beaches', 900, '2026-10-29T08:00:00.000Z', 'https://bsky.app/profile/did:plc:x/feed/abc']);
   const p = parsePosts(BSKY_FEED, { id: 'bluesky' }, { minReposts: 150 });
-  assert.equal(p.length, 1); // 3 репоста — мало, чужой репост в ленте — не оригинал
+  assert.equal(p.length, 1); // 3 reposts — too few; someone else's repost in the feed is not an original
   assert.deepEqual([p[0].title, p[0].meta.reposts, p[0].link], ['Big post', 400, 'https://bsky.app/profile/a.bsky.social/post/3k1']);
 });
 
-test('bluesky: упал один запрос — второй работает; упали оба — ошибка', async () => {
+test('bluesky: one request failed — the second works; both failed — error', async () => {
   const ok = async (url) => (url.includes('getTrends') ? res(500, 'x') : res(200, BSKY_FEED));
   assert.equal((await fetchBluesky({ id: 'bluesky', min_reposts: 150 }, { fetchImpl: ok })).length, 1);
   await assert.rejects(fetchBluesky({ id: 'bluesky' }, { fetchImpl: async () => res(403, 'no') }), /HTTP 403/);
 });
 
-// ---------- Reddit: темп и 429 ----------
-test('reddit: по одному запросу, пауза между ними, User-Agent; 429 — пропуск без ошибки', async () => {
+// ---------- Reddit: pace and 429 ----------
+test('reddit: one request at a time, a pause between them, User-Agent; 429 — skip without error', async () => {
   const calls = [];
   const pauses = [];
   const fetchImpl = async (url, init) => {
@@ -154,15 +154,15 @@ test('reddit: по одному запросу, пауза между ними, 
   assert.equal(calls.length, 3);
   assert.deepEqual(pauses, [2500, 2500]);
   assert.ok(calls.every((c) => c.ua === UA && c.ua.length > 10));
-  assert.equal(items.length, 2); // worldnews и space; news пропущен (429)
+  assert.equal(items.length, 2); // worldnews and space; news skipped (429)
 });
 
-test('reddit: 429 везде — пустой результат, не ошибка радара', async () => {
+test('reddit: 429 everywhere — empty result, not a radar error', async () => {
   const items = await fetchReddit({ id: 'reddit', subs: ['a', 'b'] }, { fetchImpl: async () => res(429, ''), sleep: async () => {} });
   assert.deepEqual(items, []);
 });
 
-test('reddit: .json закрыт (403) — берём .rss; всё сломано (500) — ошибка', async () => {
+test('reddit: .json closed (403) — take .rss; everything broken (500) — error', async () => {
   const urls = [];
   const fetchImpl = async (url) => { urls.push(url); return url.includes('.json') ? res(403, '') : res(200, REDDIT_ATOM); };
   const items = await fetchReddit({ id: 'reddit', subs: ['space'] }, { fetchImpl, sleep: async () => {} });
@@ -171,7 +171,7 @@ test('reddit: .json закрыт (403) — берём .rss; всё сломан�
   await assert.rejects(fetchReddit({ id: 'reddit', subs: ['a'] }, { fetchImpl: async () => res(500, ''), sleep: async () => {} }), /HTTP 500/);
 });
 
-// ---------- детектор всплеска ----------
+// ---------- spike detector ----------
 const T = Date.parse('2026-10-29T12:00:00Z');
 const ago = (min) => new Date(T - min * 60000).toISOString();
 let seq = 0;
@@ -179,10 +179,10 @@ const it = (source, title, minAgo, summary = '') => ({ id: `${source}:${++seq}`,
 const KINDS = { reddit: 'reddit', 'trends-us': 'trends' };
 const CFG = { ...BURST_CONFIG, aliases: { ...BURST_CONFIG.aliases, brazil: 'бразилия' } };
 
-// фон: 24 часа обычных новостей, разные темы; первая запись — 23 часа назад (история есть)
+// background: 24 hours of ordinary news on different topics; the first record is 23 hours ago (there is history)
 const background = () => Array.from({ length: 48 }, (_, i) => it(['tass', 'ria', 'lenta'][i % 3], `Фоновая тема номер${i} про ${['бюджет', 'погоду', 'футбол', 'курорт'][i % 4]}${i}`, 1380 - i * 28));
 
-test('burst: СМИ + Reddit про одну тему (на разных языках) → всплеск', () => {
+test('burst: media + Reddit on one topic (in different languages) → spike', () => {
   const items = [
     ...background(),
     it('tass', 'Нефть вынесло на пляжи Бразилии', 40),
@@ -199,13 +199,13 @@ test('burst: СМИ + Reddit про одну тему (на разных язы�
   assert.ok(['нефт', 'пляж', 'бразил'].every((t) => b.tokens.includes(t)), b.tokens.join());
   assert.equal(b.mediaItems.length, 3);
   assert.equal(b.signalItems.length, 2);
-  assert.equal(burstTitle(b, CFG), 'Нефть вынесло на пляжи Бразилии'); // из СМИ (не из Reddit); все три покрывают тему поровну — берётся самая ранняя
+  assert.equal(burstTitle(b, CFG), 'Нефть вынесло на пляжи Бразилии'); // from media (not Reddit); all three cover the topic equally — the earliest is taken
 });
 
-test('burst: порог x3 из конфига — нефть у берегов нескольких континентов (Reddit + Trends + СМИ) даёт всплеск, одиночный тренд — нет', () => {
+test('burst: x3 threshold from config — oil on the shores of several continents (Reddit + Trends + media) gives a spike; a single trend does not', () => {
   assert.equal(BURST_CONFIG.min_ratio, 3);
   assert.equal(BURST_CONFIG.min_types, 2);
-  // у темы есть история (≈1 упоминание в час), поэтому рост около x4: при x5 такой всплеск терялся
+  // the topic has history (≈1 mention per hour), so growth is about x4: at x5 such a spike would be lost
   const history = Array.from({ length: 24 }, (_, i) => it(['tass', 'ria', 'lenta'][i % 3], `Нефть и пляж: курорты ждут туристов ${i}`, 120 + i * 50));
   const oil = [
     ...background(),
@@ -216,22 +216,22 @@ test('burst: порог x3 из конфига — нефть у берегов 
     it('trends-us', 'oil beaches continents', 30, 'Oil spill on beaches in Africa and Asia'),
   ];
   const [b] = detectBursts(oil, { now: T, kinds: KINDS, config: CFG });
-  assert.ok(b, 'всплеск найден');
+  assert.ok(b, 'spike found');
   assert.deepEqual(b.types, ['media', 'reddit', 'trends']);
-  assert.ok(b.ratio >= 3 && b.ratio < 5, `ratio ${b.ratio}`); // при прежнем x5 не нашёлся бы
+  assert.ok(b.ratio >= 3 && b.ratio < 5, `ratio ${b.ratio}`); // with the old x5 it would not be found
   assert.equal(detectBursts(oil, { now: T, kinds: KINDS, config: { ...CFG, min_ratio: 5 } }).length, 0);
   const lone = [...background(), it('trends-us', 'oil beaches continents', 30, 'Oil on beaches'), it('trends-us', 'oil continents spill', 20, 'Oil on beaches'), it('trends-us', 'oil beaches spill', 10, 'Oil on beaches')];
   assert.deepEqual(detectBursts(lone, { now: T, kinds: KINDS, config: CFG }), []);
 });
 
-test('burst: один вид источников — не всплеск (только СМИ или только Reddit)', () => {
+test('burst: one kind of source — not a spike (media only or Reddit only)', () => {
   const media = [...background(), it('tass', 'Нефть вынесло на пляжи Бразилии', 40), it('ria', 'Нефть у берегов Бразилии: пляжи закрыты', 30), it('lenta', 'Пятна нефти на пляжах Бразилии', 20)];
   assert.deepEqual(detectBursts(media, { now: T, kinds: KINDS, config: CFG }), []);
   const reddit = [...background(), ...[40, 30, 20].map((m) => it('reddit', `Oil on Brazil beaches ${'x'.repeat(m % 7)}`, m))];
   assert.deepEqual(detectBursts(reddit, { now: T, kinds: KINDS, config: CFG }), []);
 });
 
-test('burst: ровный фон (3 в час и раньше) — не всплеск; 2 упоминания — мало', () => {
+test('burst: flat background (3 per hour and earlier) — not a spike; 2 mentions — too few', () => {
   const steady = Array.from({ length: 72 }, (_, i) => it(['tass', 'ria', 'lenta'][i % 3], `Курс доллара на торгах ${i}`, Math.floor(i / 3) * 60 + 5));
   const mix = [...steady, it('reddit', 'Курс доллара снова растёт', 10), it('reddit', 'Курс доллара новый рекорд', 8)];
   assert.deepEqual(detectBursts(mix, { now: T, kinds: KINDS, config: CFG }), []);
@@ -239,7 +239,7 @@ test('burst: ровный фон (3 в час и раньше) — не вспл
   assert.deepEqual(detectBursts(few, { now: T, kinds: KINDS, config: CFG }), []);
 });
 
-test('burst: тема уже в топе — не новая; база моложе min_history_hours — всплесков нет', () => {
+test('burst: topic already in the top — not new; database younger than min_history_hours — no spikes', () => {
   const items = [...background(), it('tass', 'Нефть вынесло на пляжи Бразилии', 40), it('ria', 'Нефть у берегов Бразилии: пляжи закрыты', 30), it('lenta', 'Пятна нефти на пляжах Бразилии', 20), it('reddit', 'Oil washing up on Brazil beaches', 35), it('reddit', 'Oil spill reaches Brazil beaches', 25)];
   assert.equal(detectBursts(items, { now: T, kinds: KINDS, config: CFG }).length, 1);
   assert.deepEqual(detectBursts(items, { now: T, kinds: KINDS, config: CFG, known: ['Нефть вынесло на пляжи Бразилии'] }), []);
@@ -247,7 +247,7 @@ test('burst: тема уже в топе — не новая; база моло�
   assert.deepEqual(detectBursts(young, { now: T, kinds: KINDS, config: CFG }), []);
 });
 
-test('burst: пара независимых сигналов без СМИ (Trends + Reddit) — всплеск, заголовок из сигнала', () => {
+test('burst: a pair of independent signals without media (Trends + Reddit) — spike, headline from the signal', () => {
   const items = [...background(), it('trends-us', 'whale beach stranded', 30, 'Giant whale stranded on beach'), it('reddit', 'Giant whale stranded on beach, locals try to help', 25), it('reddit', 'Whale stranded again on a beach near town', 15), it('trends-us', 'stranded whale', 10)];
   const [b] = detectBursts(items, { now: T, kinds: KINDS, config: CFG });
   assert.deepEqual(b.types, ['reddit', 'trends']);
@@ -255,14 +255,14 @@ test('burst: пара независимых сигналов без СМИ (Tre
   assert.match(burstTitle(b, CFG), /whale/i);
 });
 
-test('burst: тема из одного общего слова не всплеск (min_tokens)', () => {
+test('burst: a topic made of one generic word is not a spike (min_tokens)', () => {
   const items = [...background(), it('tass', 'Депутат высказался', 40), it('ria', 'Министр высказался', 30), it('lenta', 'Артист высказался', 20), it('reddit', 'Mayor высказался', 35)];
   assert.deepEqual(detectBursts(items, { now: T, kinds: KINDS, config: CFG }), []);
   assert.equal(detectBursts(items, { now: T, kinds: KINDS, config: { ...CFG, min_tokens: 1 } }).length, 1);
 });
 
-// ---------- очки хайпа ----------
-test('score: хайп добавляет очки по весам audience.json, без хайпа — как раньше', () => {
+// ---------- hype points ----------
+test('score: hype adds points by audience.json weights; without hype — as before', () => {
   const ev = { title: 'Нейтральная новость без тем', firstSeen: '2026-10-01T00:00:00Z', independentSources: 2 };
   const now = Date.parse('2026-10-29T12:00:00Z');
   const base = score(ev, { now });
@@ -274,8 +274,8 @@ test('score: хайп добавляет очки по весам audience.json,
   assert.equal(score({ ...ev, hype: { types: 2, ratio: 6 } }, { now, audience: custom }).score - base.score, 5);
 });
 
-// ---------- радар ----------
-test('радар: пустой ответ источника хайпа — не ошибка; every_min держит ритм; baseline по polls', async () => {
+// ---------- radar ----------
+test('radar: an empty hype-source response is not an error; every_min keeps the rhythm; baseline by polls', async () => {
   const store = openStore(':memory:');
   const log = join(mkdtempSync(join(tmpdir(), 'hype-')), 'e.log');
   const hype = { id: 'reddit', type: 'hype', kind: 'reddit', every_min: 10 };
@@ -285,15 +285,15 @@ test('радар: пустой ответ источника хайпа — не
   let r = await pollOnce([hype, feed], { store, loader, logPath: log, now: () => new Date(t0) });
   assert.deepEqual(r.map((x) => [x.source, x.ok]), [['reddit', true], ['tass', true]]);
   r = await pollOnce([hype, feed], { store, loader, logPath: log, now: () => new Date(t0 + 120000) });
-  assert.deepEqual(r.map((x) => x.source), ['tass']); // reddit молчит до +10 мин
+  assert.deepEqual(r.map((x) => x.source), ['tass']); // reddit stays silent until +10 min
   r = await pollOnce([hype, feed], { store, loader, logPath: log, now: () => new Date(t0 + 11 * 60000) });
   assert.deepEqual(r.map((x) => x.source), ['reddit', 'tass']);
-  // пустая лента СМИ по-прежнему ошибка
+  // an empty media feed is still an error
   r = await pollOnce([feed], { store, loader: async () => [], logPath: log, now: () => new Date(t0 + 20 * 60000) });
   assert.equal(r[0].ok, false);
 });
 
-test('радар: записи хайпа сохраняют meta (очки, комментарии) в items', async () => {
+test('radar: hype records keep meta (points, comments) in items', async () => {
   const store = openStore(':memory:');
   const src = { id: 'reddit', type: 'hype', kind: 'reddit' };
   await pollOnce([src], { store, loader: async () => parseRedditJson(REDDIT_JSON, src), logPath: join(mkdtempSync(join(tmpdir(), 'hype-')), 'e.log') });
@@ -301,7 +301,7 @@ test('радар: записи хайпа сохраняют meta (очки, к�
   assert.deepEqual([JSON.parse(row.meta).score, JSON.parse(row.meta).comments], [41200, 2300]);
 });
 
-test('sources.json: хайп-источники описаны полно, у каждого есть загрузчик', async () => {
+test('sources.json: hype sources are fully described; each has a loader', async () => {
   const hype = (await loadSources()).filter((s) => s.type === 'hype');
   assert.deepEqual(new Set(hype.map((s) => s.kind)), new Set(['trends', 'reddit', 'wikipedia', 'bluesky']));
   for (const s of hype) assert.ok(LOADERS[s.kind] && s.every_min > 0, s.id);
@@ -310,14 +310,14 @@ test('sources.json: хайп-источники описаны полно, у к
   await assert.rejects(async () => fetchHype({ kind: 'tiktok' }), /неизвестный вид/);
 });
 
-// ---------- отбор: событие из всплеска ----------
+// ---------- selection: event from a spike ----------
 const NOW = new Date('2026-10-29T12:00:00Z');
 const GROUPS = { tass: 'tass', ria: 'ria', lenta: 'lenta' };
 function seed(store, rows) {
   for (const r of rows) store.addItems([{ id: r.id, source: r.source, title: r.title, summary: r.summary ?? '', link: r.link, published: r.published, meta: r.meta }], { now: r.first_seen });
 }
 
-test('select: всплеск СМИ + Reddit → событие hype=1 с пик-очками; ссылки сигналов только в базе', () => {
+test('select: media + Reddit spike → event hype=1 with peak points; signal links only in the database', () => {
   const store = openStore(':memory:');
   seed(store, [
     ...background(),
@@ -332,18 +332,18 @@ test('select: всплеск СМИ + Reddit → событие hype=1 с пик
   const ev = store.list().filter((e) => e.hype);
   assert.equal(ev.length, 1);
   assert.equal(ev[0].title, 'Нефть вынесло на пляжи Бразилии');
-  assert.equal(ev[0].independent_sources, 4); // 3 издателя + Reddit
+  assert.equal(ev[0].independent_sources, 4); // 3 publishers + Reddit
   assert.ok(ev[0].reasons.some((x) => x.startsWith('хайп: всплеск')));
   assert.ok(ev[0].peak_score >= 40);
-  assert.ok(ev[0].sources.some((s) => s.source === 'reddit')); // сверка фактов: сигнал в записи события
+  assert.ok(ev[0].sources.some((s) => s.source === 'reddit')); // fact check: the signal is in the event's record
   assert.ok(['отобрано', 'новое'].includes(ev[0].status));
-  // повтор не плодит событий; признак не снимается
+  // a repeat creates no events; the flag is not cleared
   selectEvents(store, { now: NOW, groups: GROUPS, kinds: KINDS, burstConfig: CFG });
   assert.equal(store.list().filter((e) => e.hype).length, 1);
   assert.equal(store.list().filter((e) => e.title.includes('нефт') || e.title.includes('Нефть')).length, 1);
 });
 
-test('select: сигналы сами по себе не публикуются — только Reddit (один вид) событий не даёт', () => {
+test('select: signals alone are not published — Reddit only (one kind) yields no events', () => {
   const store = openStore(':memory:');
   seed(store, [...background(), ...[40, 30, 20, 10].map((m) => it('reddit', `Oil washing up on Brazil beach number ${m}`, m))]);
   const before = selectEvents(store, { now: NOW, groups: GROUPS, kinds: KINDS, burstConfig: CFG });
@@ -351,7 +351,7 @@ test('select: сигналы сами по себе не публикуются 
   assert.ok(!store.list().some((e) => /Oil washing/.test(e.title)));
 });
 
-test('select: Trends + Reddit без СМИ → кандидат hype=1, заголовок из сигнала', () => {
+test('select: Trends + Reddit without media → candidate hype=1, headline from the signal', () => {
   const store = openStore(':memory:');
   seed(store, [...background(), it('trends-us', 'whale beach stranded', 30, 'Giant whale stranded on beach'), it('reddit', 'Giant whale stranded on beach, locals try to help', 25), it('reddit', 'Whale stranded again on a beach near town', 15), it('trends-us', 'stranded whale', 10)]);
   selectEvents(store, { now: NOW, groups: GROUPS, kinds: KINDS, burstConfig: CFG });

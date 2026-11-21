@@ -3,7 +3,7 @@ import { getJson, pause } from './http.js';
 const API = 'https://wikimedia.org/api/rest_v1/metrics/pageviews/top';
 const SERVICE = /^(Main_Page|Заглавная_страница|-|Special:|Служебная:|Wikipedia:|Википедия:|Portal:|Портал:|File:|Файл:|Help:|Справка:|Category:|Категория:|Talk:|Обсуждение|Template:|Шаблон:|User:|Участник:)/i;
 
-/** Ответ top-API → [{ article, views }] без служебных страниц. Пустой/битый ответ — []. */
+/** top-API response → [{ article, views }] without service pages. An empty or broken response → []. */
 export function parseTop(json) {
   return (json?.items?.[0]?.articles ?? [])
     .filter((a) => a?.article && Number.isFinite(a.views) && !SERVICE.test(a.article))
@@ -16,9 +16,9 @@ const median = (xs) => {
 };
 
 /**
- * «Резкий рост»: просмотры дня против медианы предыдущих дней. Статья, не попавшая в топ-1000
- * того дня, считается за порог этого дня (меньше она набрать не могла — оценка консервативна).
- * latest: [{article, views}], history: [[{article, views}], …] (по дням). Возвращает [{article, views, median, ratio}].
+ * "Sharp rise": the day's views against the median of the previous days. An article that is not in the top 1000
+ * of that day counts as that day's threshold (it could not have scored lower — the estimate is conservative).
+ * latest: [{article, views}], history: [[{article, views}], …] (per day). Returns [{article, views, median, ratio}].
  */
 export function surges(latest, history, { minViews = 20000, ratio = 3 } = {}) {
   const cutoffs = history.map((day) => Math.min(...day.map((a) => a.views), Infinity)).map((c) => (Number.isFinite(c) ? c : 0));
@@ -33,7 +33,7 @@ export function surges(latest, history, { minViews = 20000, ratio = 3 } = {}) {
   return out.sort((a, b) => b.ratio - a.ratio || b.views - a.views);
 }
 
-/** Резко выросшие статьи → записи радара. day — дата данных (ГГГГ-ММ-ДД), now — время сбора. */
+/** Sharply risen articles → radar records. day — the data date (YYYY-MM-DD), now — the collection time. */
 export function toItems(rows, source, day, now = new Date()) {
   const host = source.project.replace('.wikipedia', '.wikipedia.org');
   return rows.map((r) => ({
@@ -51,8 +51,8 @@ export function toItems(rows, source, day, now = new Date()) {
 const ymd = (d) => [d.getUTCFullYear(), String(d.getUTCMonth() + 1).padStart(2, '0'), String(d.getUTCDate()).padStart(2, '0')];
 
 /**
- * Топ просмотров за последний доступный день (вчера; если не вышел — позавчера) и baseline_days дней до него.
- * Сегодняшнего топа у Викимедии нет до конца суток.
+ * Top views for the last available day (yesterday; if not yet out — the day before) and baseline_days days before it.
+ * Wikimedia has no today's top until the day ends.
  */
 export async function fetchWikipedia(source, { fetchImpl = fetch, sleep = pause, now = new Date(), ...opts } = {}) {
   const baseDays = source.baseline_days ?? 6;
@@ -65,7 +65,7 @@ export async function fetchWikipedia(source, { fetchImpl = fetch, sleep = pause,
   try {
     latest = await get(1);
   } catch (e) {
-    if (e.status === 429) return []; // лимит — пропуск без ошибки радара
+    if (e.status === 429) return []; // rate limit — skip without a radar error
     if (e.status !== 404) throw e;
     latest = await get(2);
   }
@@ -76,7 +76,7 @@ export async function fetchWikipedia(source, { fetchImpl = fetch, sleep = pause,
     try {
       history.push((await get(shift + i)).rows);
     } catch (e) {
-      if (e.status === 429) break; // считаем по тому, что успели
+      if (e.status === 429) break; // count with whatever was collected
       if (e.status !== 404) throw e;
     }
   }

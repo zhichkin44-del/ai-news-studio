@@ -24,7 +24,7 @@ const okSend = () => {
   return { send, calls };
 };
 
-test('формат: без картинки sendMessage, с картинкой sendPhoto с подписью', () => {
+test('format: sendMessage without a picture, sendPhoto with a caption when there is one', () => {
   assert.equal(formatPost('@ch', { text: 'Привет' }).method, 'sendMessage');
   const p = formatPost('@ch', { text: 'Привет', image: 'data/images/a.jpg' });
   assert.equal(p.method, 'sendPhoto');
@@ -32,7 +32,7 @@ test('формат: без картинки sendMessage, с картинкой s
   assert.equal(p.params.photo, 'data/images/a.jpg');
 });
 
-test('ворота: ссылка, лента, длина — ничего не отправляется', async () => {
+test('gate: link, feed name, length — nothing is sent', async () => {
   for (const text of ['Читайте на https://example.com/1', 'Об этом написал BBC', 'а'.repeat(1025), '']) {
     const { send, calls } = okSend();
     const r = await publish({ chat: '@ch', post: { text }, send });
@@ -42,13 +42,13 @@ test('ворота: ссылка, лента, длина — ничего не �
   }
 });
 
-test('publish: успех возвращает message_id; нет чата — config', async () => {
+test('publish: success returns message_id; no chat — config', async () => {
   const { send } = okSend();
   assert.deepEqual(await publish({ chat: '@ch', post: { text: 'Нормальный пост' }, send }), { ok: true, message_id: 101 });
   assert.equal((await publish({ chat: '', post: { text: 'Пост' }, send })).reason, 'config');
 });
 
-test('повтор при сетевой ошибке, затем успех', async () => {
+test('retry on a network error, then success', async () => {
   let n = 0;
   const send = async () => { if (++n < 3) throw new Error('ECONNRESET'); return { message_id: 7 }; };
   const r = await publish({ chat: '@ch', post: { text: 'Пост' }, send, retries: 2, sleep: noSleep });
@@ -56,7 +56,7 @@ test('повтор при сетевой ошибке, затем успех', a
   assert.equal(n, 3);
 });
 
-test('повторы исчерпаны — ошибка retryable; 400 не повторяется', async () => {
+test('retries exhausted — retryable error; 400 is not retried', async () => {
   let n = 0;
   const bad = async () => { n++; throw new Error('timeout'); };
   const r = await publish({ chat: '@ch', post: { text: 'Пост' }, send: bad, retries: 2, sleep: noSleep });
@@ -69,7 +69,7 @@ test('повторы исчерпаны — ошибка retryable; 400 не п�
   assert.equal(n, 1);
 });
 
-test('очередь: только одобренные, остальные не трогаются', async () => {
+test('queue: only approved items; the others are untouched', async () => {
   const s = fixture(2, { approve: false });
   s.ownerAct('d-e2', 'одобрил', {}, T0.toISOString());
   const { send, calls } = okSend();
@@ -79,7 +79,7 @@ test('очередь: только одобренные, остальные не
   assert.equal(s.getDraft('d-e1').status, 'ждёт одобрения');
 });
 
-test('публикация: статус «опубликован» и message_id в drafts', async () => {
+test('publishing: status «опубликован» (published) and message_id in drafts', async () => {
   const s = fixture(1);
   const { send } = okSend();
   await runQueue({ store: s, chat: '@ch', send, now: T0, sleep: noSleep });
@@ -89,7 +89,7 @@ test('публикация: статус «опубликован» и message_i
   assert.equal(d.published_at, T0.toISOString());
 });
 
-test('пауза между постами: второй не раньше M минут', async () => {
+test('pause between posts: the second is not earlier than M minutes', async () => {
   const s = fixture(2);
   const { send, calls } = okSend();
   const cfg = { min_gap_minutes: 20 };
@@ -103,7 +103,7 @@ test('пауза между постами: второй не раньше M м�
   assert.equal(calls.length, 2);
 });
 
-test('лимит N в час: по умолчанию 3, правится конфигом', async () => {
+test('limit N per hour: default 3, adjustable via config', async () => {
   const s = fixture(5);
   const { send, calls } = okSend();
   const cfg = { min_gap_minutes: 0 };
@@ -119,7 +119,7 @@ test('лимит N в час: по умолчанию 3, правится кон
   assert.equal(calls.length, 5);
 });
 
-test('дубли: повторный проход не публикует то же; markPublished срабатывает один раз', async () => {
+test('duplicates: a repeat pass does not publish the same post; markPublished fires once', async () => {
   const s = fixture(1);
   const { send, calls } = okSend();
   const cfg = { min_gap_minutes: 0 };
@@ -131,7 +131,7 @@ test('дубли: повторный проход не публикует то �
   assert.equal(s.getDraft('d-e1').message_id, '101');
 });
 
-test('ворота в очереди: плохой пост пропущен, следующий уходит, статус не меняется', async () => {
+test('gate in the queue: a bad post is skipped, the next one goes out, status unchanged', async () => {
   const s = fixture(2, { texts: ['Смотрите https://example.com/x', 'Хороший пост'] });
   const { send, calls } = okSend();
   const r = await runQueue({ store: s, chat: '@ch', send, config: { min_gap_minutes: 0 }, now: T0, sleep: noSleep });
@@ -141,7 +141,7 @@ test('ворота в очереди: плохой пост пропущен, с
   assert.equal(calls.length, 1);
 });
 
-test('сетевая ошибка: пост остаётся «одобрен», проход останавливается, потом уходит', async () => {
+test('network error: the post stays «одобрен», the pass stops, then it goes out', async () => {
   const s = fixture(1);
   const down = async () => { throw new Error('ENOTFOUND'); };
   let r = await runQueue({ store: s, chat: '@ch', send: down, config: { retries: 1 }, now: T0, sleep: noSleep });
@@ -152,7 +152,7 @@ test('сетевая ошибка: пост остаётся «одобрен»,
   assert.equal(r.published.length, 1);
 });
 
-test('картинка из таблицы images уходит sendPhoto; чужой режим не публикует', async () => {
+test('a picture from the images table goes via sendPhoto; a foreign mode does not publish', async () => {
   const s = fixture(1);
   s.addImage({ draftId: 'd-e1', file: 'data/images/d-e1.jpg', sha256: 'h', url: 'https://img.example/a.jpg', source: 'feed' }, T0.toISOString());
   const { send, calls } = okSend();
@@ -164,7 +164,7 @@ test('картинка из таблицы images уходит sendPhoto; чуж
   assert.equal(calls[0].params.photo, 'data/images/wm/d-e1.jpg');
 });
 
-test('дубли: если отметка «опубликован» не записалась, пост не уходит второй раз (29.10: один пост шесть раз)', async () => {
+test('duplicates: if the «опубликован» mark is not written, the post does not go out a second time (29.10: one post went out six times)', async () => {
   const s = fixture(1);
   const real = s.markPublished;
   s.markPublished = () => { throw new Error('database is locked'); };
@@ -174,11 +174,11 @@ test('дубли: если отметка «опубликован» не зап
   assert.ok(first.skipped.some((x) => /отметка не записалась/.test(x.reason)));
   s.markPublished = real;
   const again = await runQueue({ store: s, chat: '@ch', send, now: at(120), sleep: noSleep });
-  assert.equal(calls.length, 1, 'второй раз не отправлен');
+  assert.equal(calls.length, 1, 'not sent a second time');
   assert.ok(again.skipped.some((x) => x.reason === 'уже отправлялся'));
 });
 
-test('дубли: не ушло по сети — бронь снимается, следующий проход пробует снова', async () => {
+test('duplicates: not sent due to the network — the reservation is released; the next pass retries', async () => {
   const s = fixture(1);
   let n = 0;
   const send = async () => { n++; if (n === 1) throw new Error('сеть'); return { message_id: 7 }; };
@@ -188,7 +188,7 @@ test('дубли: не ушло по сети — бронь снимается,
   assert.equal(b.published.length, 1);
 });
 
-test('водяной знак: относительный путь картинки разрешается от корня репозитория (baseDir), иначе пост ушёл бы текстом', async () => {
+test('watermark: a relative picture path is resolved from the repository root (baseDir), otherwise the post would go out as text', async () => {
   const s = fixture(1);
   s.addImage({ draftId: 'd-e1', eventId: 'e1', file: 'data/images/a.jpg', sha256: 'x', url: 'u', source: 'feed' });
   const seen = [];

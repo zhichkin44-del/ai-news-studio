@@ -3,7 +3,7 @@ import { HttpError, getText, iso, pause } from './http.js';
 
 export const SUBS = ['worldnews', 'news', 'interestingasfuck', 'nextfuckinglevel', 'PublicFreakout', 'technology', 'space', 'Damnthatsinteresting'];
 
-/** hot.json: листинг Reddit → записи со score и числом комментариев. Закреплённые посты пропускаем. */
+/** hot.json: Reddit listing → records with score and comment count. Pinned posts are skipped. */
 export function parseRedditJson(text, source, { minScore = 0 } = {}) {
   let data;
   try {
@@ -32,7 +32,7 @@ export function parseRedditJson(text, source, { minScore = 0 } = {}) {
   return out;
 }
 
-/** hot.rss (Atom) — запасной путь, когда .json закрыт: очков и комментариев в ленте нет, порядок = рейтинг hot. */
+/** hot.rss (Atom) — a fallback when .json is closed: the feed has no points or comments, the order = the hot ranking. */
 export function parseRedditRss(xml, source, sub) {
   return parseFeed(xml, source).map((i, rank) => ({
     ...i,
@@ -42,9 +42,9 @@ export function parseRedditRss(xml, source, sub) {
 }
 
 /**
- * Hot по списку сабреддитов: по одному запросу за раз, пауза pauseMs, User-Agent в http.js.
- * 429 — этот сабреддит пропускаем без ошибки радара; 403 по .json — пробуем .rss.
- * Ошибка (не 429) бросается, только если ни один сабреддит не ответил.
+ * Hot across a list of subreddits: one request at a time, a pause of pauseMs, User-Agent set in http.js.
+ * 429 — this subreddit is skipped without a radar error; 403 on .json — try .rss.
+ * An error (not 429) is thrown only if no subreddit answered.
  */
 export async function fetchReddit(source, { fetchImpl = fetch, sleep = pause, ...opts } = {}) {
   const subs = source.subs ?? SUBS;

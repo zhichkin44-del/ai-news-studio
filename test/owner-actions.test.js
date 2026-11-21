@@ -12,21 +12,21 @@ function fixture() {
   return s;
 }
 
-test('одобрил: статус и строка журнала', () => {
+test('одобрил (approve): status and journal row', () => {
   const s = fixture();
   s.ownerAct('d-e1', 'одобрил', {}, LATER);
   assert.equal(s.getDraft('d-e1').status, 'одобрен');
   assert.deepEqual(s.ownerActions().map((a) => [a.action, a.draft_id, a.created_at]), [['одобрил', 'd-e1', LATER]]);
 });
 
-test('отклонил: причина необязательна', () => {
+test('отклонил (reject): reason is optional', () => {
   const s = fixture();
   s.ownerAct('d-e1', 'отклонил', { reason: 'не наша тема' }, LATER);
   assert.equal(s.getDraft('d-e1').status, 'отклонён владельцем');
   assert.deepEqual(s.ownerActions()[0].detail, { reason: 'не наша тема' });
 });
 
-test('поправил: текст до и после в журнале, статус остаётся', () => {
+test('поправил (edit): text before and after in the journal, status unchanged', () => {
   const s = fixture();
   s.ownerAct('d-e1', 'поправил', { text: ' Новый текст ', gateOk: true }, LATER);
   const d = s.getDraft('d-e1');
@@ -35,7 +35,7 @@ test('поправил: текст до и после в журнале, ста�
   assert.deepEqual(s.ownerActions({ draftId: 'd-e1' })[0].detail, { before: 'Текст поста', after: 'Новый текст' });
 });
 
-test('правка без ворот, пустая и повторное действие отклоняются, журнал не растёт', () => {
+test('an edit without the gate, an empty one and a repeated action are rejected; the journal does not grow', () => {
   const s = fixture();
   assert.throws(() => s.ownerAct('d-e1', 'поправил', { text: 'x', gateOk: false }), /gate/);
   assert.throws(() => s.ownerAct('d-e1', 'поправил', { text: '  ', gateOk: true }), /empty/);
@@ -46,11 +46,11 @@ test('правка без ворот, пустая и повторное дей�
   assert.equal(s.ownerActions().length, 1);
 });
 
-test('нет черновика — ошибка', () => {
+test('no draft — error', () => {
   assert.throws(() => openStore(':memory:').ownerAct('d-nope', 'одобрил'), /no draft/);
 });
 
-test('отметки ленты: важно / не то пишутся в журнал, статус черновика не меняется', () => {
+test('feed marks: важно / не то (important / not it) are written to the journal; draft status unchanged', () => {
   const s = fixture();
   s.ownerMark('d-e1', 'важно', {}, LATER);
   s.ownerMark('d-e1', 'не то', { reason: 'повтор' }, LATER);

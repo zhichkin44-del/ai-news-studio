@@ -19,7 +19,7 @@ const PAIRS = [
 ];
 
 for (const [name, en, ru] of PAIRS) {
-  test(`en/ru об одном событии склеиваются: ${name}`, () => {
+  test(`en/ru versions of one event merge: ${name}`, () => {
     const cl = cluster([it('aljazeera', en), it('dw-ru', ru, '2026-10-28T10:00:00Z')], 0.4, GROUPS);
     assert.equal(cl.length, 1);
     assert.equal(cl[0].sourceCount, 2);
@@ -39,32 +39,32 @@ test('разные события с общей страной не склеив
   assert.equal(cluster(items, 0.4, GROUPS).length, 6);
 });
 
-test('окно 12 часов: то же событие через сутки — разные кластеры', () => {
+test('12-hour window: the same event a day apart — separate clusters', () => {
   const [en, ru] = PAIRS[0].slice(1);
   assert.equal(cluster([it('aljazeera', en, '2026-10-27T06:00:00Z'), it('dw-ru', ru, '2026-10-28T08:00:00Z')]).length, 2);
   assert.equal(cluster([it('aljazeera', en, '2026-10-28T00:00:00Z'), it('dw-ru', ru, '2026-10-28T11:30:00Z')]).length, 1);
 });
 
-test('BBC World и BBC Русская служба — одно агентство', () => {
+test('BBC World and BBC Russian Service are one agency', () => {
   const [en, ru] = PAIRS[0].slice(1);
   const cl = cluster([it('bbc-world', en), it('bbc-russian', ru)], 0.4, GROUPS);
-  assert.ok(cl.every((c) => c.sourceCount === 1 && c.status === 'не подтверждено')); // два BBC — не подтверждение
+  assert.ok(cl.every((c) => c.sourceCount === 1 && c.status === 'не подтверждено')); // two BBCs are not a confirmation
   const withDw = cluster([it('bbc-world', en), it('bbc-russian', ru), it('dw-ru', 'Столкновение поездов в Испании: десятки погибших')], 0.4, GROUPS);
   assert.equal(withDw.length, 1);
   assert.equal(withDw[0].sourceCount, 2);
 });
 
-test('внутри языка: пересказы склеиваются, повторный заход не плодит дубли', () => {
+test('within a language: paraphrases merge; a repeat visit does not create duplicates', () => {
   const a = it('aljazeera', 'Two trains collide in Spain, dozens killed');
   const b = it('guardian-world', 'Spain train crash: dozens killed after two trains collide');
-  const again = { ...a, id: 'aljazeera:again' }; // та же ссылка при повторном заходе
+  const again = { ...a, id: 'aljazeera:again' }; // the same link on a repeat visit
   const cl = cluster([a, b, again], 0.4, GROUPS);
   assert.equal(cl.length, 1);
   assert.equal(cl[0].sourceCount, 2);
   assert.equal(cl[0].items.length, 3);
 });
 
-test('составной заголовок NPR «А. And, Б» не тянет тему Б', () => {
+test('compound NPR headline «А. And, Б» does not pull in topic Б', () => {
   const items = [
     it('npr-world', "Israel's election too close to call. And, the Ebola outbreak reaches grim milestone"),
     it('npr-world', 'The Ebola outbreak is breaking records -- and just marked a grim milestone'),
@@ -72,17 +72,17 @@ test('составной заголовок NPR «А. And, Б» не тянет 
   assert.equal(cluster(items).length, 2);
 });
 
-test('якоря: словарь ru↔en, числа, имена по скелету', () => {
+test('anchors: ru↔en dictionary, numbers, names by skeleton', () => {
   const en = anchors('Two trains collide in Spain, 30 dead, Rodriguez says');
   const ru = anchors('В Испании столкнулись поезда, 30 погибших, заявил Родригес');
   for (const k of ['spain', 'train', 'crash', '#30']) assert.ok(en.has(k) && ru.has(k), k);
   assert.equal(en.get('spain'), 'geo');
   assert.equal(skeleton('Нетаньяху'), skeleton('Netanyahu'));
-  assert.ok(!anchors('Tell us what you think').has('usa'), '«us» в нижнем регистре — не США');
-  assert.ok(!anchors('Выпущен в 2026 году').has('#2026'), 'годы — не якорь');
+  assert.ok(!anchors('Tell us what you think').has('usa'), '"us" in lower case is not the USA');
+  assert.ok(!anchors('Выпущен в 2026 году').has('#2026'), 'years are not anchors');
 });
 
-test('ключи: числа и имена весят больше, окончания ru срезаются', () => {
+test('keys: numbers and names weigh more; ru endings are stripped', () => {
   const k = keys('Россия назвала 30 погибших в Гамбурге');
   assert.equal(k.get('30'), 2);
   assert.equal(k.get('гамбур'), 2);
@@ -92,7 +92,7 @@ test('ключи: числа и имена весят больше, оконча
   assert.equal(langOf('Elections in Brazil'), 'en');
 });
 
-test('индекс кандидатов даёт те же кластеры, что полный перебор пар; кэш по id не путает записи', () => {
+test('the candidate index gives the same clusters as a full pair scan; the id cache does not mix up records', () => {
   let seed = 11;
   const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
   const vocab = Array.from({ length: 40 }, (_, i) => `слово${'абвгдежз'[i % 8]}${'ийклмноп'[Math.floor(i / 8)]}ка`);
@@ -109,8 +109,8 @@ test('индекс кандидатов даёт те же кластеры, ч�
   const sig = (groups) => groups.map((g) => [...g].sort((a, b) => a - b).join(',')).sort().join('|');
   const got = cluster(items).map((c) => c.items.map((i) => i.id));
   assert.equal(sig(got), sig([...expected.values()]));
-  assert.equal(sig(cluster(items).map((c) => c.items.map((i) => i.id))), sig(got)); // повторный проход с тёплым кэшем
-  // тот же id с другим заголовком — разбор пересчитывается
+  assert.equal(sig(cluster(items).map((c) => c.items.map((i) => i.id))), sig(got)); // a repeat pass with a warm cache
+  // the same id with a different headline — parsing is recomputed
   const a = { id: 9001, source: 'x', link: 'a1', summary: '', published: '2026-10-28T10:00:00Z', title: 'совсем другое про лес' };
   const b = { id: 9002, source: 'y', link: 'a2', summary: '', published: '2026-10-28T10:00:00Z', title: 'совсем другое про лес' };
   assert.equal(cluster([a, b]).length, 1);

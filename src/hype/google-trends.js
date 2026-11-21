@@ -8,8 +8,8 @@ const inner = (block, name) => {
 };
 
 /**
- * Google Trends «в тренде сейчас» (RSS): запрос, трафик (ht:approx_traffic) и связанные новости.
- * source: { id, geo }. Запись: title — запрос, summary — заголовки связанных новостей, meta.traffic — число поисков.
+ * Google Trends «в тренде сейчас» ("trending now", RSS): query, traffic (ht:approx_traffic) and related news.
+ * source: { id, geo }. Record: title — the query, summary — headlines of related news, meta.traffic — the number of searches.
  */
 export function parseTrends(xml, source) {
   const out = [];

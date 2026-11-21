@@ -8,10 +8,10 @@ const matches = (text, list) => list.some((p) => new RegExp(p, 'u').test(text));
 const ms = (iso) => (iso ? Date.parse(iso) : NaN);
 
 /**
- * Горячесть события по шкале 01-selection.md. Чистая функция.
- * event: { title, summary?, firstSeen, independentSources, times?: [ISO] — время всех сообщений кластера,
- *   category?: world|science|tech|space|health|economy, authority?: true — есть ведущий источник категории }.
- * Возвращает { score, reasons[], needsOwner, single, acute, topic }.
+ * Event heat on the 01-selection.md scale. Pure function.
+ * event: { title, summary?, firstSeen, independentSources, times?: [ISO] — time of all cluster messages,
+ *   category?: world|science|tech|space|health|economy, authority?: true — a leading source of the category exists }.
+ * Returns { score, reasons[], needsOwner, single, acute, topic }.
  */
 export function score(event, { now = Date.now(), config = DEFAULT_CONFIG, audience = DEFAULT_AUDIENCE } = {}) {
   const reasons = [];
@@ -37,13 +37,13 @@ export function score(event, { now = Date.now(), config = DEFAULT_CONFIG, audien
   const growthPts = config.growth.tiers.find((t) => growthN >= t.min)?.points ?? 0;
   reasons.push(`сообщений за ${config.growth.windowMinutes} мин после первого: ${growthN} → ${growthPts}`);
 
-  // наука/технологии/космос/медицина/экономика: категорийный вес, «вау»-маркеры, лидер категории, стоп-слова
+  // science/technology/space/medicine/economy: category weight, "wow" markers, category leader, stop-words
   let extra = 0;
   const cat = event.category ?? null;
   if (cat && cat !== 'world' && config.wow && cat in (config.category_weights ?? {})) {
     const wc = config.wow;
     const catPts = config.category_weights?.[cat] ?? 0;
-    const head = norm(event.title); // маркеры — только по заголовку: в описаниях «discover the…» почти везде
+    const head = norm(event.title); // markers — by headline only: "discover the…" appears almost everywhere in descriptions
     const stop = matches(head, wc.stop);
     const wow = !stop && matches(head, wc.markers);
     const authority = !!event.authority;
@@ -64,24 +64,24 @@ export function score(event, { now = Date.now(), config = DEFAULT_CONFIG, audien
     }
   }
 
-  // релевантность массовой русскоязычной аудитории (профиль src/audience.json)
+  // relevance to the mass Russian-speaking audience (profile src/audience.json)
   const aud = audience ? audienceScore(event, audience) : { points: 0, reasons: [], category: null };
   reasons.push(...aud.reasons);
 
-  // «шок»: масштаб, редкость слова-триггера и число независимых источников
+  // "shock": scale, rarity of the trigger word and the number of independent sources
   let shock = audience ? shockScore({ ...event, independentSources: n }, audience) : { points: 0, reasons: [], group: null };
-  // однотипная сводка («погиб пресс-офицер», брифинг) не получает шок-очков за одно слово «погиб»
+  // a routine digest («погиб пресс-офицер» (press officer died), a briefing) gets no shock points for the single word «погиб» (died)
   if (aud.cancelShock && shock.points) shock = { ...shock, points: 0, reasons: ['шок отменён: однотипная сводка → 0'] };
   reasons.push(...shock.reasons);
 
-  // «Сигналы» (категория + аудитория + шок) считаются один раз: иначе один и тот же заголовок
-  // трижды поднимает оценку (wow «discover» + аудитория + шок) и топ упирается в 100.
+  // "Signals" (category + audience + shock) are counted once: otherwise the same headline
+  // would raise the score three times (wow «discover» + audience + shock) and the top would hit 100.
   const signals = extra + aud.points + shock.points;
   const signalMax = config.signals_max ?? 50;
   const capped = Math.min(signalMax, signals);
   if (signals > signalMax) reasons.push(`сигналы ${signals} ограничены ${signalMax}`);
 
-  // «хайп»: тема набрала обороты в соцсетях/поиске и подтверждена разными видами источников (вес — audience.json → hype)
+  // "hype": the topic gained momentum on social media/search and is confirmed by different kinds of sources (weight — audience.json → hype)
   let hypePts = 0;
   const hv = audience?.hype;
   if (event.hype && hv) {
@@ -102,8 +102,8 @@ export function score(event, { now = Date.now(), config = DEFAULT_CONFIG, audien
 }
 
 /**
- * Срочное: оценка ≥ порога и подтверждено 2+ источниками (издателями), опубликовавшими за последние 60 минут.
- * sources: [{ published }] — по одной записи на издателя (как в кластере).
+ * Urgent: score ≥ threshold and confirmed by 2+ sources (publishers) that published within the last 60 minutes.
+ * sources: [{ published }] — one record per publisher (as in the cluster).
  */
 export function isBreaking(scoreValue, sources, { now = Date.now(), config = DEFAULT_CONFIG } = {}) {
   const b = config.breaking ?? DEFAULT_CONFIG.breaking;

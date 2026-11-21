@@ -14,11 +14,11 @@ function logError(logPath, source, error, ts) {
 }
 
 /**
- * Один проход по лентам. Ошибка или пустой ответ одной ленты — в журнал и в polls, остальные идут дальше.
- * Записи первого успешного опроса ленты помечены baseline (это накопившаяся история, не «свежее»).
+ * One pass over the feeds. An error or empty response from one feed goes to the log and to polls; the others continue.
+ * Records from a feed's first successful poll are marked baseline (accumulated history, not "fresh").
  */
 export async function pollOnce(allSources, { store, loader = fetchSource, logPath = ERROR_LOG, now = () => new Date() } = {}) {
-  // у источников хайпа свой ритм (every_min): между опросами они молчат и в polls не пишутся
+  // hype sources have their own rhythm (every_min): between polls they stay silent and are not written to polls
   const sources = allSources.filter((s) => {
     const last = s.every_min && store.lastPollTs(s.id);
     return !last || now().getTime() - Date.parse(last) >= s.every_min * 60000;
@@ -31,7 +31,7 @@ export async function pollOnce(allSources, { store, loader = fetchSource, logPat
     let error = null;
     let items = [];
     if (r.status === 'rejected') error = String(r.reason?.message ?? r.reason);
-    // у сигналов хайпа пусто — норма (Reddit ответил 429, в Википедии нет резкого роста)
+    // empty hype signals are normal (Reddit answered 429, Wikipedia has no sharp rise)
     else if (!r.value.length && !isHype(src)) error = 'empty response: 0 items';
     else items = r.value;
     let added = 0;
@@ -47,7 +47,7 @@ export async function pollOnce(allSources, { store, loader = fetchSource, logPat
   return summary;
 }
 
-/** Цикл: проход, пауза intervalSec, и так пока не истёк forSec (или бесконечно). once — один проход. */
+/** Loop: a pass, a pause of intervalSec, and so on until forSec expires (or forever). once — a single pass. */
 export async function runRadar({ sources, store, loader, logPath, intervalSec = INTERVAL_SEC, forSec = null, once = false, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), clock = () => Date.now(), onPass } = {}) {
   const started = clock();
   let passes = 0;

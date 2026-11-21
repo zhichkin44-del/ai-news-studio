@@ -6,12 +6,12 @@ import { openStore } from './store.js';
 
 const URL_RE = /https?:\/\/\S+|\bwww\.\S+/gi;
 
-/** Текст без ссылок: для внутреннего материала Риты. */
+/** Text without links: for Rita's internal material. */
 export const stripLinks = (s) => String(s ?? '').replace(URL_RE, '').replace(/\s+/g, ' ').trim();
 
 /**
- * События для Риты: без ссылок и названий лент, только число независимых источников.
- * events — из store.list(); items — из collect (для summary по ссылке).
+ * Events for Rita: no links or feed names, only the number of independent sources.
+ * events — from store.list(); items — from collect (for the summary by link).
  */
 export function toEvalEvents(events, items) {
   const byLink = new Map(items.map((i) => [i.link, i]));
@@ -26,7 +26,7 @@ export function toEvalEvents(events, items) {
   }));
 }
 
-/** По `perStatus[статус]` событий, с разбросом тем: не берём события с общим первым словом заголовка. */
+/** Per `perStatus[status]` events, spread across topics: events sharing the same first word of the headline are not taken. */
 export function pick(events, perStatus) {
   const out = [];
   for (const [status, n] of Object.entries(perStatus)) {

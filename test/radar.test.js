@@ -11,7 +11,7 @@ const item = (source, n, published = '2026-10-28T10:00:00.000Z') => ({ id: `${so
 const SRC = [{ id: 'a' }, { id: 'b' }];
 const tmp = () => mkdtempSync(join(tmpdir(), 'radar-'));
 
-test('first_seen ставится при первом виде и не меняется при повторе; дублей нет', async () => {
+test('first_seen is set on first sight and does not change on a repeat; no duplicates', async () => {
   const dir = tmp();
   const store = openStore(':memory:');
   const loader = async (s) => [item(s.id, 1), item(s.id, 2)];
@@ -25,7 +25,7 @@ test('first_seen ставится при первом виде и не меня�
   rmSync(dir, { recursive: true });
 });
 
-test('первый опрос ленты — baseline, новые записи позже — нет', async () => {
+test('the first poll of a feed is baseline; later new records are not', async () => {
   const dir = tmp();
   const store = openStore(':memory:');
   let batch = [item('a', 1)];
@@ -39,7 +39,7 @@ test('первый опрос ленты — baseline, новые записи �
   rmSync(dir, { recursive: true });
 });
 
-test('ошибка и пустой ответ пишутся в журнал, остальные ленты не страдают', async () => {
+test('an error and an empty response are written to the log; other feeds are unaffected', async () => {
   const dir = tmp();
   const log = join(dir, 'sub', 'radar-errors.log');
   const store = openStore(':memory:');
@@ -60,7 +60,7 @@ test('ошибка и пустой ответ пишутся в журнал, о
   rmSync(dir, { recursive: true });
 });
 
-test('без ошибок журнал не создаётся', async () => {
+test('no log is created when there are no errors', async () => {
   const dir = tmp();
   const log = join(dir, 'none.log');
   await pollOnce([{ id: 'a' }], { store: openStore(':memory:'), loader: async () => [item('a', 1)], logPath: log });
@@ -68,7 +68,7 @@ test('без ошибок журнал не создаётся', async () => {
   rmSync(dir, { recursive: true });
 });
 
-test('windows-1251: заголовок charset и XML-объявление декодируются', () => {
+test('windows-1251: the charset header and XML declaration are decoded', () => {
   const hello = Buffer.from([0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2]); // «Привет» в cp1251
   assert.equal(decodeBuffer(hello, 'application/xml; charset=cp1251'), 'Привет');
   const xml = Buffer.concat([Buffer.from('<?xml version="1.0" encoding="windows-1251"?>'), hello]);
@@ -76,7 +76,7 @@ test('windows-1251: заголовок charset и XML-объявление де�
   assert.equal(decodeBuffer(Buffer.from('Привет', 'utf8'), 'application/xml'), 'Привет');
 });
 
-test('разбор фикстуры RSS через fetchFeed с подменой сети', async () => {
+test('RSS fixture parsed via fetchFeed with a stubbed network', async () => {
   const xml = readFileSync(new URL('./fixtures/a.rss.xml', import.meta.url), 'utf8');
   const fetchImpl = async () => ({ ok: true, text: async () => xml });
   const items = await fetchFeed({ id: 'a', url: 'http://x' }, { fetchImpl });
@@ -86,7 +86,7 @@ test('разбор фикстуры RSS через fetchFeed с подменой
   assert.equal(store.itemsSince('2000-01-01').length, items.length);
 });
 
-test('runRadar: --once делает один проход; --for ограничивает число проходов', async () => {
+test('runRadar: --once makes one pass; --for limits the number of passes', async () => {
   const store = openStore(':memory:');
   const loader = async () => [item('a', 1)];
   const logPath = join(tmp(), 'e.log');
@@ -95,7 +95,7 @@ test('runRadar: --once делает один проход; --for огранич�
   const sleep = async (ms) => { t += ms; };
   assert.equal(await runRadar({ sources: [{ id: 'a' }], store, loader, logPath, once: true, clock, sleep }), 1);
   assert.equal(t, 0);
-  // 300 с при шаге 120 с: проходы в 0, 120, 240 — следующий вышел бы за 300
+  // 300 s with a 120 s step: passes at 0, 120, 240 — the next one would exceed 300
   assert.equal(await runRadar({ sources: [{ id: 'a' }], store, loader, logPath, forSec: 300, clock, sleep }), 3);
 });
 

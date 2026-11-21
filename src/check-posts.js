@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { gate } from './gate.js';
 
-/** Прогон постов {id, style, text} через ворота. Возвращает строки и общий итог. */
+/** Runs posts {id, style, text} through the gate. Returns the rows and the overall result. */
 export function checkPosts(posts) {
   if (!Array.isArray(posts)) throw new Error('expected an array of posts');
   const rows = posts.map((p) => {

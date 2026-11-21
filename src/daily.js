@@ -9,22 +9,22 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const BREAKING_HEAD = '⚡️ СРОЧНО\n\n';
 const LIVE_DRAFT = new Set(['ждёт одобрения', 'одобрен', 'опубликован']);
 
-/** Сетка дня из score.config.json → daily; переопределяется аргументом. */
+/** Daily schedule from score.config.json → daily; overridable by an argument. */
 export const dailyConfig = (over = {}) => {
   const base = SCORE_CONFIG.daily ?? {};
   return { ...base, ...over, breaking: { ...(base.breaking ?? {}), ...(over.breaking ?? {}) } };
 };
 
-/** Календарный день по МСК ('YYYY-MM-DD') для момента ms. */
+/** Calendar day in Moscow time ('YYYY-MM-DD') for the moment ms. */
 export const mskDay = (ms, tz = 3) => new Date(ms + tz * 3600_000).toISOString().slice(0, 10);
 
-/** Момент (мс UTC) «HH:MM» по МСК в календарный день day. */
+/** Moment (ms UTC) of «HH:MM» in Moscow time on calendar day `day`. */
 export function slotTime(day, hhmm, tz = 3) {
   const [h, m] = String(hhmm).split(':').map(Number);
   return Date.parse(`${day}T00:00:00Z`) + (h * 60 + (m || 0)) * MIN - tz * 3600_000;
 }
 
-/** Какой дайджест пора выпускать: { kind:'утро'|'вечер', day, slot } | null. Окно — от времени дайджеста до +grace_minutes. */
+/** Which digest is due: { kind:'утро'|'вечер', day, slot } | null. Window — from the digest time to +grace_minutes. */
 export function dueDigest(nowMs, cfg = dailyConfig()) {
   const day = mskDay(nowMs, cfg.tz_hours);
   for (const [kind, hhmm] of [['вечер', cfg.evening], ['утро', cfg.morning]]) {
@@ -34,10 +34,10 @@ export function dueDigest(nowMs, cfg = dailyConfig()) {
   return null;
 }
 
-/** Первая фраза черновика (вторая — если первая короткая); без эмодзи-шапок, переносов и кавычек-ёлочек по краям. */
+/** First sentence of the draft (the second if the first is short); no emoji headers, line breaks or guillemets at the edges. */
 export function leadOf(text, max = 200) {
   const src = String(text ?? '');
-  // размеченный пост: пункт дайджеста = жирный заголовок (слой 2), без деталей и без разметки
+  // marked-up post: a digest item = bold headline (layer 2), without details or markup
   const bold = src.match(/^\s*[^\p{L}\p{N}<]{0,6}<b>([\s\S]*?)<\/b>/iu);
   const head = bold ? visibleText(bold[1]).replace(/\s+/g, ' ').trim() : '';
   if (head.length >= 20) return head.length > max ? `${head.slice(0, max).replace(/\s+\S*$/, '')}…` : head;
@@ -49,7 +49,7 @@ export function leadOf(text, max = 200) {
   return out;
 }
 
-/** Подходящие события: top_of_day, живой черновик, окно по first_seen, пункт проходит ворота; квота по темам. */
+/** Eligible events: top_of_day, a live draft, first_seen within the window, the item passes the gate; quota by topic. */
 function pickItems(store, { from, to, limit, perGroup, skip = new Set() }) {
   const drafts = new Map(store.listDrafts().filter((d) => LIVE_DRAFT.has(d.status)).map((d) => [d.event_id, d]));
   const cands = [];
@@ -64,9 +64,9 @@ function pickItems(store, { from, to, limit, perGroup, skip = new Set() }) {
   return pickDiverse(cands, { limit, perGroup, minOutside: 0, minScore: 0, scoreOf: peakOf });
 }
 
-const OPEN_ITEMS = 3; // первые пункты видны сразу, с 4-го — в сворачиваемой цитате
+const OPEN_ITEMS = 3; // the first items are visible at once, from the 4th on — in a collapsible quote
 
-/** Пункт дайджеста с жирными ключевыми словами: часть до двоеточия/тире, иначе первые три слова. */
+/** Digest item with bold keywords: the part before a colon/dash, otherwise the first three words. */
 export function boldLead(line) {
   const s = String(line ?? '').trim();
   const cut = s.search(/:\s|\s[—–-]\s/);
@@ -83,8 +83,8 @@ export function boldLead(line) {
 }
 
 /**
- * Текст дайджеста: пронумерованные пункты с жирными ключевыми словами, в ≤1024 видимых знака
- * (лишние пункты с конца отбрасываются). Пункты с 4-го — в <blockquote expandable>.
+ * Digest text: numbered items with bold keywords, within ≤1024 visible characters
+ * (extra items are dropped from the end). Items from the 4th on go into <blockquote expandable>.
  */
 export function buildDigest(kind, items, { minItems = 3 } = {}) {
   const head = kind === 'утро' ? 'Главное за ночь' : 'Итог дня';
@@ -105,9 +105,9 @@ export function buildDigest(kind, items, { minItems = 3 } = {}) {
 }
 
 /**
- * Дайджест по сетке дня: утро (08:00 МСК) и вечер (21:00 МСК), по одному в сутки каждый.
- * Идёт мимо часового лимита обычных постов, но через publish() (ворота) и с бронью (kind, день) — дубля не будет.
- * Меньше min_items подходящих — не публикуется. Возвращает { published, kind?, day?, message_id?, reason? }.
+ * Digest on the daily schedule: morning (08:00 MSK) and evening (21:00 MSK), one of each per day.
+ * Goes past the hourly limit for regular posts, but through publish() (the gate) and with a reservation (kind, day) — so no duplicates.
+ * Fewer than min_items eligible — not published. Returns { published, kind?, day?, message_id?, reason? }.
  */
 export async function runDaily({ store, chat, send, config = {}, now = new Date(), sleep = wait }) {
   const cfg = dailyConfig(config);
@@ -117,7 +117,7 @@ export async function runDaily({ store, chat, send, config = {}, now = new Date(
   const { kind, day, slot } = due;
   if (store.hasBroadcast(kind, day)) return { published: false, kind, day, reason: 'уже выпущен за сутки' };
   const morning = kind === 'утро';
-  const done = new Set(store.broadcasts({ day }).flatMap((b) => b.event_ids)); // вечером не повторяем утреннее
+  const done = new Set(store.broadcasts({ day }).flatMap((b) => b.event_ids)); // the evening does not repeat the morning items
   const items = pickItems(store, {
     from: morning ? slot - cfg.morning_window_hours * 3600_000 : slotTime(day, '00:00', cfg.tz_hours),
     to: slot + 1,
@@ -140,9 +140,9 @@ export async function runDaily({ store, chat, send, config = {}, now = new Date(
 }
 
 /**
- * «⚡️ СРОЧНО»: breaking=1, независимых издателей ≥ min_sources (3), одобренный черновик, событие свежее.
- * Вне часовой очереди; не чаще раза в gap_minutes и не более per_day в сутки по МСК.
- * Возвращает { published:[{id,message_id}], skipped:[{id,reason}], stopped: null|'пауза'|'лимит в сутки'|'сеть' }.
+ * «⚡️ СРОЧНО» (URGENT): breaking=1, independent publishers ≥ min_sources (3), an approved draft, a fresh event.
+ * Outside the hourly queue; no more often than once per gap_minutes and no more than per_day per day (MSK).
+ * Returns { published:[{id,message_id}], skipped:[{id,reason}], stopped: null|'пауза'|'лимит в сутки'|'сеть' }.
  */
 export async function runBreaking({ store, chat, send, config = {}, now = new Date(), sleep = wait }) {
   const cfg = dailyConfig(config);

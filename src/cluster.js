@@ -17,14 +17,14 @@ const isCyr = (w) => /\p{Script=Cyrillic}/u.test(w);
 const norm = (s) => s.toLowerCase().replace(/ё/g, 'е');
 const words = (s) => norm(s).match(/[\p{L}\p{N}]+/gu) ?? [];
 
-/** Язык заголовка по алфавиту: ru — если кириллицы больше, иначе en. */
+/** Headline language by script: ru if there is more Cyrillic than Latin, otherwise en. */
 export function langOf(title) {
   const cyr = (title.match(/\p{Script=Cyrillic}/gu) ?? []).length;
   const lat = (title.match(/\p{Script=Latin}/gu) ?? []).length;
   return cyr > lat ? 'ru' : 'en';
 }
 
-/** Грубая основа слова: срезаем окончания (ru — список, en — s/ed/ing), не короче 3 букв, не длиннее 6. */
+/** Rough word stem: strips endings (ru — a list, en — s/ed/ing), keeps at least 3 letters, at most 6. */
 export function stem(w) {
   const ends = isCyr(w) ? RU_ENDINGS : EN_ENDINGS;
   if (!/\p{L}/u.test(w)) return w;
@@ -32,16 +32,16 @@ export function stem(w) {
   return w.slice(0, 6);
 }
 
-/** Составной заголовок NPR «Тема А. And, тема Б» — главная тема только первая. */
+/** Compound NPR headline «Тема А. And, тема Б» ("Topic A. And, topic B") — only the first topic is the main one. */
 const headline = (title) => title.split(/\.\s+And,?\s/)[0];
 
-/** Слова заголовка, начинающиеся с заглавной не в начале (имена собственные). */
+/** Headline words that start with a capital letter but are not first (proper nouns). */
 function capitalized(title) {
   const raw = title.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? [];
   return raw.slice(1).filter((w) => /^\p{Lu}/u.test(w) && w.replace(/['’-]/g, '').length >= 4);
 }
 
-/** Ключи для внутриязыковой склейки: основа → вес (числа и имена собственные весят 2). */
+/** Keys for within-language merging: stem → weight (numbers and proper nouns weigh 2). */
 export function keys(title) {
   title = headline(title);
   const m = new Map();
@@ -55,7 +55,7 @@ export function keys(title) {
   return m;
 }
 
-/** Взвешенное сходство Жаккара между наборами ключей. */
+/** Weighted Jaccard similarity between key sets. */
 export function weightedSimilarity(a, b) {
   if (!a.size || !b.size) return 0;
   let common = 0, sa = 0, sb = 0;
@@ -65,11 +65,11 @@ export function weightedSimilarity(a, b) {
   return common / (sa + sb - common);
 }
 
-// ---------- якоря ----------
+// ---------- anchors ----------
 
 const TRANSLIT = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sh', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya' };
 
-/** Согласный скелет имени: кириллица и латиница сводятся к одному ключу (Нетаньяху / Netanyahu → ntnh). */
+/** Consonant skeleton of a name: Cyrillic and Latin reduce to one key (Нетаньяху / Netanyahu → ntnh). */
 export function skeleton(word) {
   let s = norm(word).replace(/[^\p{L}]/gu, '');
   s = [...s].map((c) => TRANSLIT[c] ?? c).join('');
@@ -113,7 +113,7 @@ const plain = (s) => norm(s).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const stripHtml = (s) => (s ?? '').replace(/<[^>]*>/g, ' ');
 
 const HITS_CAP = 50000;
-const hitsCache = new Map(); // слово → словарные якоря (имена собственные повторяются тысячами раз)
+const hitsCache = new Map(); // word → dictionary anchors (proper nouns repeat thousands of times)
 
 function dictHitsRaw(text) {
   const low = plain(text);
@@ -135,9 +135,9 @@ function dictHitsWord(w) {
 const dictHits = dictHitsRaw;
 
 /**
- * Якоря текста: словарные (страны/города/имена/организации/типы событий из anchors.json),
- * числа и неизвестные имена собственные (по согласному скелету, одинаковому для кириллицы и латиницы).
- * Возвращает Map: ключ → вид (geo | name | topic | num).
+ * Text anchors: dictionary ones (countries/cities/names/organizations/event types from anchors.json),
+ * numbers and unknown proper nouns (by consonant skeleton, the same for Cyrillic and Latin).
+ * Returns a Map: key → kind (geo | name | topic | num).
  */
 export function anchors(text) {
   const out = dictHits(text);
@@ -161,9 +161,9 @@ function itemAnchors(it) {
 
 const timeOf = (it) => Date.parse(it.published ?? it.first_seen ?? '');
 
-/** «Ядро» якорей группы записей: якоря, которые есть не менее чем у половины записей (так цепочка через Трампа не тянет чужое). */
+/** "Core" anchors of a group of records: anchors present in at least half of the records (so a chain through Trump does not pull in unrelated stories). */
 function profile(members) {
-  const need = members.length <= 2 ? 1 : Math.max(2, Math.ceil(members.length / 4)); // большой сюжет: якорь у четверти записей
+  const need = members.length <= 2 ? 1 : Math.max(2, Math.ceil(members.length / 4)); // large story: anchor in a quarter of the records
   const count = (pick) => {
     const c = new Map();
     for (const m of members) for (const [k, v] of pick(m)) c.set(k, { kind: v, n: (c.get(k)?.n ?? 0) + 1 });
@@ -174,11 +174,11 @@ function profile(members) {
 }
 
 /**
- * Правило склейки двух групп записей по якорям: окно ≤ 12 ч; общие якоря (заголовок + начало описания)
- * весят ≥ 2 (частые якоря — Трамп, США, Россия — и общие типы событий — «удар», «война» — по 0,5); ≥ 1 общий для заголовков;
- * среди общих хотя бы один конкретный (не география и не общий тип), иначе любые две новости
- * про Израиль и Газу склеились бы.
- * weight(k) — вес якоря; по умолчанию 1.
+ * Anchor-merge rule for two groups of records: window ≤ 12 h; shared anchors (headline + start of the description)
+ * weigh ≥ 2 (frequent anchors — Trump, USA, Russia — and generic event types such as «удар» (strike) and «война» (war) count 0.5 each); ≥ 1 shared for the headlines;
+ * among the shared ones at least one specific (not geography and not a generic type), otherwise any two news items
+ * about Israel and Gaza would merge.
+ * weight(k) — anchor weight; default 1.
  */
 export function anchorMatch(a, b, weight = () => 1) {
   const kindW = (k) => (a.all.get(k) === 'generic' ? 0.5 : 1);
@@ -186,16 +186,16 @@ export function anchorMatch(a, b, weight = () => 1) {
   const shared = [...a.all.keys()].filter((k) => b.all.has(k));
   const w = shared.reduce((s, k) => s + Math.min(weight(k), kindW(k)), 0);
   if (shared.length < 2 || w < 2) return 0;
-  if (shared.filter((k) => Math.min(weight(k), kindW(k)) === 1).length < 2) return 0; // Трамп + США + «выборы» — это ещё не одно событие
+  if (shared.filter((k) => Math.min(weight(k), kindW(k)) === 1).length < 2) return 0; // Trump + USA + «выборы» (elections) is not one event yet
   if (!shared.some((k) => a.title.has(k) && b.title.has(k))) return 0;
   if (!shared.some((k) => a.all.get(k) !== 'geo' && a.all.get(k) !== 'generic')) return 0;
   return w;
 }
 
 /**
- * Этап (б): группы после этапа (а) склеиваются по общим якорям раундами — лучшие пары первыми;
- * профиль группы пересчитывается после каждого раунда. Работает для любых пар групп: и ru↔en,
- * и пересказы в одном языке другими словами.
+ * Stage (b): groups left after stage (a) are merged by shared anchors in rounds — best pairs first;
+ * a group's profile is recalculated after each round. Works for any pair of groups: ru↔en,
+ * and paraphrases in the same language.
  */
 function mergeByAnchors(items, info, find, union, groups) {
   const pub = (it) => groups[it.source] ?? it.source;
@@ -208,8 +208,8 @@ function mergeByAnchors(items, info, find, union, groups) {
     const prof = new Map(roots.map((r) => [r, profile(members.get(r))]));
     const pubs = new Map(roots.map((r) => [r, new Set(members.get(r).map((m) => pub(m.item)))]));
     const sub = (x, y) => [...x].every((p) => y.has(p));
-    // инвертированный индекс: якорь → группы. Склейка требует ≥ 2 общих «весомых» якорей
-    // (не общих и не типов событий), поэтому кандидаты — только пары, делящие два таких якоря
+    // inverted index: anchor → groups. Merging requires ≥ 2 shared "weighty" anchors
+    // (not common ones and not event types), so candidates are only pairs sharing two such anchors
     const index = new Map();
     roots.forEach((r, ri) => {
       for (const [k, kind] of prof.get(r).all) {
@@ -227,7 +227,7 @@ function mergeByAnchors(items, info, find, union, groups) {
       }
       const cands = [...cnt].filter(([, n]) => n >= 2).map(([b]) => b).sort((x, y) => x - y);
       for (const b of cands) {
-        // события одной и той же ленты (или одного издателя) друг друга не подтверждают — не склеиваем
+        // items from the same feed (or the same publisher) do not confirm each other — do not merge
         if (sub(pubs.get(roots[a]), pubs.get(roots[b])) && sub(pubs.get(roots[b]), pubs.get(roots[a]))) continue;
         const w = anchorMatch(prof.get(roots[a]), prof.get(roots[b]), weight);
         if (w) pairs.push([w, roots[a], roots[b]]);
@@ -247,9 +247,9 @@ function mergeByAnchors(items, info, find, union, groups) {
 }
 
 const PREP_CAP = 100000;
-const prepCache = new Map(); // id записи → разобранные токены/якоря; живёт, пока живёт процесс (отбор и метрики делят его)
+const prepCache = new Map(); // record id → parsed tokens/anchors; lives as long as the process (selection and metrics share it)
 
-/** Разбор записи (язык, ключи, якоря) — один раз на запись; кэш по id сверяется с заголовком и описанием. */
+/** Parses a record (language, keys, anchors) once per record; the cache by id is checked against the title and description. */
 function prep(it) {
   const cached = it.id != null ? prepCache.get(it.id) : null;
   if (cached && cached.title === it.title && cached.summary === it.summary) return cached;
@@ -267,20 +267,20 @@ function prep(it) {
 }
 
 /**
- * Склейка в кластеры в два этапа.
- * (а) внутри языка — взвешенное сходство нормализованных ключей ≥ threshold; одинаковая ссылка — то же событие;
- * (б) между языками — по общим якорям (anchorMatch).
- * groups: лента → издатель (BBC World и BBC Русская служба = одно агентство): повторы издателя не независимы.
+ * Merging into clusters in two stages.
+ * (a) within a language — weighted similarity of normalized keys ≥ threshold; the same link means the same event;
+ * (b) across languages — by shared anchors (anchorMatch).
+ * groups: feed → publisher (BBC World and BBC Russian Service = one agency): repeats from one publisher are not independent.
  */
 export function cluster(items, threshold = 0.4, groups = {}) {
   const pre = items.map(prep);
   const lang = pre.map((p) => p.lang);
   const ks = pre.map((p) => p.keys);
-  const digest = pre.map((p) => p.digest); // дайджесты «Главные новости дня» — не одно событие
+  const digest = pre.map((p) => p.digest); // "Main news of the day" digests are not a single event
   const parent = items.map((_, i) => i);
   const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
   const union = (i, j) => { parent[find(j)] = find(i); };
-  // этап (а): кандидаты — записи с общим ключом (без общего ключа сходство 0 < threshold); порядок слияний прежний
+  // stage (a): candidates are records with a shared key (no shared key means similarity 0 < threshold); merge order unchanged
   const byLink = new Map(), post = new Map();
   const sums = ks.map((k) => { let s = 0; for (const w of k.values()) s += w; return s; });
   const push = (m, k, i) => { const l = m.get(k); if (l) l.push(i); else m.set(k, [i]); };
@@ -291,15 +291,15 @@ export function cluster(items, threshold = 0.4, groups = {}) {
   for (let i = 0; i < items.length; i++) {
     const cand = new Set(byLink.get(items[i].link));
     if (!digest[i]) {
-      // префиксный фильтр: сходство ≥ threshold даёт общий вес ≥ threshold·вес(i), а самые частые ключи
-      // весят не больше 2 каждый — их можно не обходить, если вместе они не набирают этого веса (результат точный)
+      // prefix filter: similarity ≥ threshold implies shared weight ≥ threshold·weight(i), and the most frequent keys
+      // weigh at most 2 each — they can be skipped if together they do not reach that weight (the result stays exact)
       const byFreq = [...ks[i].keys()].sort((a, b) => post.get(b).length - post.get(a).length);
       let skip = 0;
       while (skip < byFreq.length && 2 * (skip + 1) < threshold * sums[i]) skip++;
       for (let n = skip; n < byFreq.length; n++) for (const j of post.get(byFreq[n])) cand.add(j);
     }
     for (const j of [...cand].sort((a, b) => a - b)) {
-      if (j <= i || find(i) === find(j)) continue; // уже в одном кластере: union ничего не изменит
+      if (j <= i || find(i) === find(j)) continue; // already in one cluster: union would change nothing
       if (items[i].link === items[j].link || (!digest[i] && !digest[j] && lang[i] === lang[j] && weightedSimilarity(ks[i], ks[j]) >= threshold)) union(i, j);
     }
   }
@@ -316,7 +316,7 @@ export function cluster(items, threshold = 0.4, groups = {}) {
 
 function buildCluster(items, groups) {
   const sorted = [...items].sort((a, b) => (b.published ?? '').localeCompare(a.published ?? ''));
-  // одна запись на издателя (groups сводит ленты одного издателя, напр. BBC): повторы не независимы
+  // one record per publisher (groups merges feeds of one publisher, e.g. BBC): repeats are not independent
   const bySource = new Map();
   for (const it of sorted) { const k = groups[it.source] ?? it.source; if (!bySource.has(k)) bySource.set(k, it); }
   const sources = [...bySource.values()];

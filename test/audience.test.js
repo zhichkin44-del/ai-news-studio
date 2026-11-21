@@ -12,14 +12,14 @@ const min = (m) => new Date(NOW - m * 60000).toISOString();
 const ev = (title, o = {}) => ({ title, firstSeen: min(20), independentSources: 1, ru: true, ...o });
 const sc = (e) => score(e, { now: NOW });
 
-// --- 8 примеров: 4 высоко (>60), 4 низко (<40) ---
+// --- 8 examples: 4 high (>60), 4 low (<40) ---
 for (const [title, o] of [
   ['Россия нанесла удар по Киеву, есть погибшие', { independentSources: 2 }],
   ['Путин заявил о готовности к переговорам по Украине', { independentSources: 2 }],
   ['Рубль упал до минимума с весны, ЦБ повысил курс доллара', { independentSources: 2 }],
   ['Трамп пригрозил России новыми санкциями', { independentSources: 2 }],
 ]) {
-  test(`аудитория: «${title}» выше 60`, () => {
+  test(`audience: «${title}» above 60`, () => {
     const r = sc(ev(title, o));
     assert.ok(r.score > 60, `score ${r.score}: ${r.reasons.join(' | ')}`);
   });
@@ -30,20 +30,20 @@ for (const title of [
   'Скидка 50% на ноутбуки: лучшие deals недели',
   'Review: new budget headphones tested',
 ]) {
-  test(`аудитория: «${title}» ниже 40`, () => {
+  test(`audience: «${title}» below 40`, () => {
     const r = sc(ev(title, { ru: /[а-я]/i.test(title) }));
     assert.ok(r.score < 40, `score ${r.score}: ${r.reasons.join(' | ')}`);
   });
 }
 
-test('порядок: удар по Киеву > выборы в Колумбии на равных условиях', () => {
+test('order: strike on Kyiv > Colombian elections under equal conditions', () => {
   const hi = sc(ev('Удар по Киеву', { independentSources: 2 }));
   const lo = sc(ev('Выборы в Колумбии', { independentSources: 2 }));
   assert.ok(hi.score > lo.score + 40);
 });
 
-// --- профиль ---
-test('профиль: темы с весами и триггерами ru+en, штрафы; читается из audience.json', () => {
+// --- profile ---
+test('profile: topics with weights and ru+en triggers, penalties; read from audience.json', () => {
   const file = JSON.parse(readFileSync(new URL('../src/audience.json', import.meta.url), 'utf8'));
   assert.deepEqual(file.topics.map((t) => t.name), DEFAULT_AUDIENCE.topics.map((t) => t.name));
   for (const t of file.topics) assert.ok(t.weight > 0 && t.triggers.length && t.category, t.name);
@@ -52,7 +52,7 @@ test('профиль: темы с весами и триггерами ru+en, ш
   assert.ok(file.penalties.length >= 2);
 });
 
-test('профиль: сильнейшая тема, русскоязычный бонус, штраф вычитается', () => {
+test('profile: strongest topic, Russian-language bonus, penalty subtracted', () => {
   const p = (title, ru) => audienceScore({ title, ru });
   assert.equal(p('Обстрел Харькова', true).topic, 'Война и Украина');
   assert.equal(p('Обстрел Харькова', true).category, 'war');
@@ -64,14 +64,14 @@ test('профиль: сильнейшая тема, русскоязычный 
   assert.equal(p('Выборы в Госдуму: Путин проголосовал', true).points > 0, true, 'выборы в России/с Путиным не штрафуются');
 });
 
-test('профиль правится без кода: свой профиль меняет оценку', () => {
+test('profile is editable without code: a custom profile changes the score', () => {
   const custom = { ...DEFAULT_AUDIENCE, topics: [{ name: 'Погода', category: 'society', weight: 40, triggers: ['погод'] }], penalties: [] };
   const e = ev('Погода в Перми: снег');
   assert.equal(score(e, { now: NOW, audience: custom }).score - score(e, { now: NOW, audience: null }).score, 40 + 2 + 8);
 });
 
 // --- breaking ---
-test('breaking: оценка ≥ 70 и 2+ источника за последние 60 минут', () => {
+test('breaking: score ≥ 70 and 2+ sources within the last 60 minutes', () => {
   const two = [{ published: min(10) }, { published: min(40) }];
   assert.equal(isBreaking(75, two, { now: NOW }), true);
   assert.equal(isBreaking(69, two, { now: NOW }), false, 'оценка ниже');
@@ -82,7 +82,7 @@ test('breaking: оценка ≥ 70 и 2+ источника за последн
 const feed = (id, source, title, minutesAgo, i = 0) => ({ id: `${source}:${id}${i}`, source, title, summary: '', link: `https://x.test/${source}/${id}`, published: min(minutesAgo) });
 const addItems = (store, items) => store.addItems(items, { now: min(0) });
 
-test('select: breaking=1 у подтверждённого свежего удара, у выборов и одиночных — 0', () => {
+test('select: breaking=1 for the confirmed fresh strike; 0 for the election and single-source items', () => {
   const store = openStore(':memory:');
   addItems(store, [
     feed('a', 'tass', 'Российские ракеты ударили по Киеву, погибли люди', 15),
@@ -99,25 +99,25 @@ test('select: breaking=1 у подтверждённого свежего уда
   assert.equal(by(/Путин/).breaking, 0);
   assert.equal(by(/Киев/).category, 'war');
   assert.ok(by(/Киев/).score >= 70);
-  // повторный прогон идемпотентен
+  // a repeat run is idempotent
   selectEvents(store, { hours: 3, now: new Date(NOW), sourceMeta: meta });
   assert.equal(store.list().filter((e) => e.breaking).length, 1);
   store.close();
 });
 
 // --- digest ---
-test('digest: ночь 18:00→08:00 по UTC+7, до 7 лучших, поля id/title/score/category', () => {
+test('digest: night 18:00→08:00 UTC+7, up to 7 best, fields id/title/score/category', () => {
   const store = openStore(':memory:');
   const put = (id, title, score, firstSeen, status = 'отобрано', category = 'accidents') => {
     store.upsert({ id, title, firstSeen, independentSources: 2, score, reasons: [], needsOwner: false, sources: [{ source: 's', link: `https://x.test/${id}` }] }, firstSeen);
     store.setStatus(id, status);
     store.setCategory(id, category);
   };
-  // ночь 27→28 окт по UTC+7 = 27.10 11:00Z … 28.10 01:00Z; категории разные — квота 2 на группу
+  // night of Oct 27→28, UTC+7 = Oct 27 11:00Z … Oct 28 01:00Z; categories differ — quota 2 per group
   const cats = ['war', 'science', 'tech', 'economy'];
   for (let i = 0; i < 9; i++) put(`n${i}`, `ночное ${i}`, 50 + i, `2026-10-27T${String(12 + i).padStart(2, '0')}:00:00Z`, 'отобрано', cats[i % cats.length]);
-  put('day', 'дневное', 99, '2026-10-27T05:00:00Z'); // 12:00 по UTC+7 — вне окна
-  put('late', 'после 08:00', 99, '2026-10-28T01:00:00Z'); // ровно 08:00 — вне окна
+  put('day', 'дневное', 99, '2026-10-27T05:00:00Z'); // 12:00 UTC+7 — outside the window
+  put('late', 'после 08:00', 99, '2026-10-28T01:00:00Z'); // exactly 08:00 — outside the window
   put('rej', 'отклонённое', 98, '2026-10-27T15:00:00Z', 'отклонено');
   const from = new Date(parseLocal('2026-10-27T18:00'));
   const to = new Date(parseLocal('2026-10-28T08:00'));
@@ -130,10 +130,10 @@ test('digest: ночь 18:00→08:00 по UTC+7, до 7 лучших, поля i
   store.close();
 });
 
-test('digest: окно по умолчанию — последняя законченная ночь', () => {
-  const a = lastNight(new Date('2026-10-28T05:00:00Z')); // 12:00 по UTC+7 → ночь 27→28
+test('digest: default window — the last completed night', () => {
+  const a = lastNight(new Date('2026-10-28T05:00:00Z')); // 12:00 UTC+7 → night 27→28
   assert.equal(a.to.toISOString(), '2026-10-28T01:00:00.000Z');
   assert.equal(a.from.toISOString(), '2026-10-27T11:00:00.000Z');
-  const b = lastNight(new Date('2026-10-27T23:00:00Z')); // 06:00 28.10 → ещё идёт, берём прошлую
+  const b = lastNight(new Date('2026-10-27T23:00:00Z')); // 06:00 Oct 28 → still running, take the previous one
   assert.equal(b.to.toISOString(), '2026-10-27T01:00:00.000Z');
 });

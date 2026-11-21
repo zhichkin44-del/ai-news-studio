@@ -17,21 +17,21 @@ const stamp = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.
 export const issueFileName = (d) => `${stamp(d)}.md`;
 export const eventsFileName = (d) => `${stamp(d)}.events.json`;
 
-/** Стабильный id кластера: по id записей-членов. */
+/** Stable cluster id: from the ids of its member records. */
 export function clusterId(c) {
   return createHash('sha1').update(c.items.map((i) => i.id).sort().join('\n')).digest('hex').slice(0, 12);
 }
 
-/** Пост: заголовок + поле пересказа. Ни ссылок, ни источников. */
+/** Post: headline + retelling field. No links, no sources. */
 export const toPost = (c) => ({ title: c.title, body: DRAFT_PLACEHOLDER });
 
 export const firstSeenOf = (c) => c.items.map((i) => i.published).filter(Boolean).sort()[0] ?? null;
 
 export const sourceMetaOf = (list) => Object.fromEntries(list.map((s) => [s.id, { category: s.category, authority: !!s.authority, lang: s.lang }]));
 
-const CATEGORY_ORDER = ['science', 'space', 'health', 'tech', 'war', 'russia', 'accidents', 'celebrity', 'sport', 'society', 'world', 'economy']; // при равенстве голосов; общая экономическая лента не перебивает мировую
+const CATEGORY_ORDER = ['science', 'space', 'health', 'tech', 'war', 'russia', 'accidents', 'celebrity', 'sport', 'society', 'world', 'economy']; // on a tie in votes; the general economic feed does not override the world feed
 
-/** Категория события — та, к которой относится больше лент его кластера; признак «ведущий источник» — хотя бы одна такая лента. */
+/** Event category — the one most feeds of its cluster belong to; the «leading source» flag — at least one such feed. */
 export function eventMeta(c, sourceMeta = {}) {
   const ms = c.sources.map((s) => sourceMeta[s.source]).filter(Boolean);
   const votes = (k) => ms.filter((m) => m.category === k).length;
@@ -41,8 +41,8 @@ export function eventMeta(c, sourceMeta = {}) {
 }
 
 /**
- * Решение по событию: ворота + оценка → статус и причина.
- * Одно-источниковое выше порога не выпускается — ждёт владельца.
+ * Decision on an event: gate + score → status and reason.
+ * A single-source event above the threshold is not published — it waits for the owner.
  */
 export function decide(c, { now = Date.now(), scoreConfig, gateOpts, sourceMeta } = {}) {
   const post = toPost(c);
@@ -63,8 +63,8 @@ export function decide(c, { now = Date.now(), scoreConfig, gateOpts, sourceMeta 
 }
 
 /**
- * Готовим выпуск: в посты — события выше порога, прошедшие ворота, не одно-источниковые
- * и ещё не выпущенные; остальные остаются в событиях и хранилище со статусом и причиной.
+ * Preparing an issue: the posts are events above the threshold that passed the gate, are not single-source
+ * and are not yet published; the rest stay in the events and the store with their status and reason.
  */
 export function buildIssue(clusters, { date = new Date(), sources = [], errors = [], gateOpts, scoreConfig, store, sourceMeta } = {}) {
   const cfg = scoreConfig ?? DEFAULT_CONFIG;
@@ -93,7 +93,7 @@ export function buildIssue(clusters, { date = new Date(), sources = [], errors =
         date.toISOString(),
       );
       ev.id = r.id;
-      if (r.status === 'выпущено') { // уже был в прошлом выпуске: дубль не плодим
+      if (r.status === 'выпущено') { // already in a previous issue: do not create a duplicate
         ev.status = 'выпущено';
         ev.status_reason = 'уже выпущено ранее';
         events.push(ev);
@@ -119,7 +119,7 @@ export function buildIssue(clusters, { date = new Date(), sources = [], errors =
 
 export async function makeIssue({ n = 30, outDir = 'out/test-channel', now = new Date(), loader, sources, dbPath = DEFAULT_DB, scoreConfig } = {}) {
   const list = sources ?? (await loadSources());
-  const { items, errors } = await collect(list.filter((s) => !isHype(s)), loader ? { loader } : {}); // сигналы хайпа — не новости, их разбирает select
+  const { items, errors } = await collect(list.filter((s) => !isHype(s)), loader ? { loader } : {}); // hype signals are not news; select handles them
   const clusters = select(items, { n, now: now.getTime(), groups: Object.fromEntries(list.map((s) => [s.id, s.group ?? s.id])) });
   const store = openStore(dbPath);
   let built;

@@ -14,7 +14,7 @@ const ev = (title, o = {}) => ({ title, firstSeen: min(20), independentSources: 
 const sc = (e) => score(e, { now: NOW });
 const GROUPS = new Set(['политика/война', 'мир и ЧП', 'наука', 'технологии и ИИ', 'экономика', 'культура/спорт/знаменитости']);
 
-// --- 12 примеров: 6 «ничего себе» > 60, 6 рутины < 40 ---
+// --- 12 examples: 6 "wow" > 60, 6 routine < 40 ---
 for (const title of [
   'Нобелевская премия по физике присуждена ученым за открытие',
   'Иран атаковал Ормузский пролив',
@@ -23,7 +23,7 @@ for (const title of [
   'Землетрясение: сотни погибших',
   'Взлом банка: хакеры украли миллиард',
 ]) {
-  test(`шок: «${title}» выше 60`, () => {
+  test(`shock: «${title}» above 60`, () => {
     const r = sc(ev(title));
     assert.ok(r.score > 60, `score ${r.score}: ${r.reasons.join(' | ')}`);
   });
@@ -36,18 +36,18 @@ for (const title of [
   'Обычное заседание городского совета прошло спокойно',
   'Погода в Перми: небольшой снег',
 ]) {
-  test(`рутина: «${title}» ниже 40`, () => {
+  test(`routine: «${title}» below 40`, () => {
     const r = sc(ev(title, { ru: /[а-я]/i.test(title) }));
     assert.ok(r.score < 40, `score ${r.score}: ${r.reasons.join(' | ')}`);
   });
 }
 
-test('шкала: оценка не больше 100 даже при максимуме триггеров', () => {
+test('scale: score is at most 100 even with the maximum of triggers', () => {
   const r = sc(ev('Землетрясение: сотни погибших, тысячи жертв, обвал рынка, ядерная катастрофа', { independentSources: 5, category: 'accidents' }));
   assert.ok(r.score <= 100 && r.score >= 0, `score ${r.score}`);
 });
 
-test('профиль шока: 9 классов с весами, редкостью, группой и триггерами ru+en', () => {
+test('shock profile: 9 classes with weights, rarity, group and ru+en triggers', () => {
   const file = JSON.parse(readFileSync(new URL('../src/audience.json', import.meta.url), 'utf8'));
   assert.equal(file.shock.classes.length, 9);
   const all = file.shock.classes.flatMap((c) => c.triggers).join(' ');
@@ -57,7 +57,7 @@ test('профиль шока: 9 классов с весами, редкост�
   }
 });
 
-test('шок без подтверждения не начисляется (один неавторитетный источник)', () => {
+test('shock without confirmation is not awarded (one non-authoritative source)', () => {
   const lone = sc(ev('Нобелевская премия по физике присуждена ученым', { independentSources: 1 }));
   const two = sc(ev('Нобелевская премия по физике присуждена ученым'));
   assert.equal(lone.shock, 0);
@@ -65,10 +65,10 @@ test('шок без подтверждения не начисляется (од
   assert.ok(two.score > lone.score);
 });
 
-// --- top_of_day: ≤ 7, квоты по группам, минимум вне политики ---
+// --- top_of_day: ≤ 7, quotas by group, minimum outside politics ---
 const T = (id, score, category, o = {}) => ({ id, score, first_seen: min(20), status: 'отобрано', category, ...o });
 
-test('topOfDay: до 7, не больше 2 одной группы, отклонённые не в счёт', () => {
+test('topOfDay: up to 7, no more than 2 from one group, rejected ones do not count', () => {
   const evs = [
     T('p1', 99, 'war'), T('p2', 98, 'war'), T('p3', 97, 'war'),
     T('s1', 90, 'science'), T('s2', 89, 'science'), T('s3', 88, 'science'),
@@ -79,18 +79,18 @@ test('topOfDay: до 7, не больше 2 одной группы, откло�
   assert.ok(top.size <= 7, `в топе ${top.size}`);
   const picked = evs.filter((e) => top.has(e.id));
   const by = (cat) => picked.filter((e) => e.category === cat).length;
-  assert.ok(by('war') <= 2 && by('science') <= 2, 'квота 2 на группу');
+  assert.ok(by('war') <= 2 && by('science') <= 2, 'quota 2 per group');
   assert.ok(!top.has('p3') && !top.has('s3'));
-  assert.ok(picked.filter((e) => e.category !== 'war').length >= 3, 'минимум 3 вне политики');
+  assert.ok(picked.filter((e) => e.category !== 'war').length >= 3, 'minimum 3 outside politics');
   assert.ok(!top.has('rej'));
 });
 
-test('topOfDay: если всё — политика, всё равно не больше 2', () => {
+test('topOfDay: if everything is politics, still at most 2', () => {
   const top = topOfDay(Array.from({ length: 7 }, (_, i) => T(`p${i}`, 90 - i, 'war')), { min: 40, perDay: 7 });
   assert.equal(top.size, 2);
 });
 
-test('topOfDay: событие вне политики с оценкой ≥ порога вытесняет политику (минимум 3 из 7)', () => {
+test('topOfDay: an event outside politics with score ≥ threshold displaces politics (minimum 3 of 7)', () => {
   const evs = [
     ...Array.from({ length: 7 }, (_, i) => T(`p${i}`, 90 - i, 'war')),
     T('out1', 45, 'science'), T('out2', 44, 'tech'), T('out3', 43, 'economy'),
@@ -100,12 +100,12 @@ test('topOfDay: событие вне политики с оценкой ≥ п�
   assert.ok(picked.filter((e) => e.category !== 'war').length >= 3);
 });
 
-test('topOfDay: считает по peak_score, а не по текущей оценке', () => {
+test('topOfDay: uses peak_score, not the current score', () => {
   const top = topOfDay([T('e', 30, 'science', { peak_score: 80 })], { min: 40, perDay: 7 });
   assert.ok(top.has('e'));
 });
 
-test('select: пометки прошлых дней сбрасываются, в топе только текущие сутки', () => {
+test('select: marks from past days are reset; only the current day is in the top', () => {
   const s = openStore(':memory:');
   const rec = (id, source, title, published) => ({ id, source, title, summary: '', link: `https://example.com/${id}`, published });
   s.addItems([rec('cur:1', 'a', 'Землетрясение магнитудой 7: есть погибшие', min(30))], { now: min(20) });
@@ -119,8 +119,8 @@ test('select: пометки прошлых дней сбрасываются, �
   s.close();
 });
 
-// --- peak_score в хранилище ---
-test('peak_score: только вверх, текущая оценка может снижаться', () => {
+// --- peak_score in the store ---
+test('peak_score: only goes up; the current score can drop', () => {
   const s = openStore(':memory:');
   const put = (v) => s.upsert({ id: 'e', title: 'Событие', firstSeen: min(30), independentSources: 2, score: v, reasons: [], needsOwner: false, sources: [{ source: 'a', link: 'https://x.test/1' }] });
   put(50);
@@ -133,7 +133,7 @@ test('peak_score: только вверх, текущая оценка може�
   s.close();
 });
 
-test('digest: считает и отдаёт пиковую оценку', () => {
+test('digest: computes and returns the peak score', () => {
   const s = openStore(':memory:');
   const at = '2026-10-27T20:00:00Z';
   const put = (v) => s.upsert({ id: 'e', title: 'Ночное событие', firstSeen: at, independentSources: 2, score: v, reasons: [], needsOwner: false, sources: [{ source: 'a', link: 'https://x.test/1' }] }, at);
@@ -147,8 +147,8 @@ test('digest: считает и отдаёт пиковую оценку', () =>
   s.close();
 });
 
-// --- срочное: ссылки копятся в базе, считаем по издателям ---
-test('срочное: две ссылки одной ленты не дают 2 источника (нет ложного «срочно»)', () => {
+// --- urgent: links accumulate in the database; counted per publisher ---
+test('urgent: two links from one feed do not make 2 sources (no false «срочно»)', () => {
   const s = openStore(':memory:');
   const at = min(10);
   s.upsert({ id: 'one', title: 'Одно-источниковое событие', firstSeen: at, independentSources: 1, score: 90, reasons: [], needsOwner: false, sources: [
@@ -165,12 +165,12 @@ test('срочное: две ссылки одной ленты не дают 2 
     groups: { a1: 'a', a2: 'a', b1: 'b1', b2: 'b2', z: 'z' },
     sourceMeta: { z: { lang: 'ru', category: 'society' } },
   });
-  assert.equal(s.get('one').breaking, 0, 'одна лента (2 ссылки) — не срочно');
-  assert.equal(s.get('two').breaking, 1, 'два издателя — срочно');
+  assert.equal(s.get('one').breaking, 0, 'one feed (2 links) — not urgent');
+  assert.equal(s.get('two').breaking, 1, 'two publishers — urgent');
   s.close();
 });
 
-test('section: новость общей ru-ленты (russia) с темой «экономика» — не политика', () => {
+test('section: news from a common ru feed (russia) with the topic «экономика» (economy) is not politics', () => {
   const s = openStore(':memory:');
   const at = min(10);
   s.addItems([{ id: 'r:1', source: 'r', title: 'Курс доллара вырос на торгах', summary: '', link: 'https://r.test/1', published: at }], { now: at });
@@ -179,7 +179,7 @@ test('section: новость общей ru-ленты (russia) с темой «
   s.close();
 });
 
-test('старение: событие с высоким пиком не уходит в «отклонено» и остаётся в топе', () => {
+test('aging: an event with a high peak does not go to «отклонено» and stays in the top', () => {
   const s = openStore(':memory:');
   const at = min(30);
   s.upsert({ id: 'e', title: 'Сильное событие', firstSeen: at, independentSources: 2, score: 70, reasons: [], needsOwner: false, sources: [{ source: 'a', link: 'https://e.test/1', published: at }] }, at);
@@ -196,13 +196,13 @@ test('старение: событие с высоким пиком не ухо�
   s.close();
 });
 
-test('метрика доли высоких оценок: ≥ 60 от всех событий', () => {
+test('metric of the share of high scores: ≥ 60 out of all events', () => {
   assert.equal(highShare([30, 60, 70, 40]), 0.5);
   assert.equal(highShare([], 60), null);
   assert.equal(highShare([59, 60], 60), 0.5);
 });
 
-test('select: «отобрано» не больше дневного потолка', () => {
+test('select: «отобрано» is no more than the daily ceiling', () => {
   const s = openStore(':memory:');
   const titles = ['Землетрясение в Японии', 'Открылся музей кошек', 'Футбольный матч перенесли'];
   const rec = (i) => ({ id: `a:${i}`, source: 'a', title: titles[i - 1], summary: '', link: `https://example.com/${i}`, published: min(20 + i) });

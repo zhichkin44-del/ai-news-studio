@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 export const STATUSES = ['новое', 'отобрано', 'отклонено', 'выпущено'];
 export const DRAFT_STATUSES = ['ждёт одобрения', 'одобрен', 'отклонён владельцем', 'опубликован'];
 export const OWNER_ACTIONS = ['одобрил', 'поправил', 'отклонил'];
-// Отметки владельца в ленте «для себя» (не меняют статус черновика): основа для обучения вкуса.
+// Owner marks in the personal feed (they do not change the draft status): the basis for learning taste.
 export const OWNER_MARKS = ['важно', 'снял важно', 'не то'];
 export const REJECTED_BY_CODE = 'отклонён кодом';
 export const DEFAULT_DB = 'data/news.db';
@@ -109,16 +109,16 @@ CREATE TABLE IF NOT EXISTS broadcasts (
 
 const minIso = (a, b) => (!a ? b : !b ? a : a <= b ? a : b);
 
-/** Хранилище событий (node:sqlite). Источники и ссылки — только здесь, не в постах. */
+/** Event store (node:sqlite). Sources and links live only here, not in posts. */
 export function openStore(path = DEFAULT_DB) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec('PRAGMA busy_timeout = 5000'); // радар пишет в ту же базу
-  // WAL: пульт читает базу, пока отбор пишет; без журнала читатель ждал писателя до 30 с и пульт замирал (29.10)
+  db.exec('PRAGMA busy_timeout = 5000'); // the radar writes to the same database
+  // WAL: the panel reads the database while selection writes; without the journal the reader waited for the writer up to 30 s and the panel froze (29.10)
   if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   db.exec(SCHEMA);
-  // миграция живой базы: категория события и «топ дня» (лента владельца)
+  // migration of a live database: event category and "top of the day" (the owner's feed)
   const cols = db.prepare('PRAGMA table_info(events)').all().map((c) => c.name);
   if (!cols.includes('category')) db.exec('ALTER TABLE events ADD COLUMN category TEXT');
   if (!cols.includes('top_of_day')) db.exec('ALTER TABLE events ADD COLUMN top_of_day INTEGER NOT NULL DEFAULT 0');
@@ -128,7 +128,7 @@ export function openStore(path = DEFAULT_DB) {
   if (!cols.includes('section')) db.exec('ALTER TABLE events ADD COLUMN section TEXT');
   const icols = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
   if (!icols.includes('image')) db.exec('ALTER TABLE items ADD COLUMN image TEXT');
-  if (!icols.includes('meta')) db.exec('ALTER TABLE items ADD COLUMN meta TEXT'); // числа сигналов хайпа (очки, комментарии, трафик) — JSON
+  if (!icols.includes('meta')) db.exec('ALTER TABLE items ADD COLUMN meta TEXT'); // hype signal numbers (points, comments, traffic) — JSON
 
   const dcols = db.prepare('PRAGMA table_info(drafts)').all().map((c) => c.name);
   if (!dcols.includes('message_id')) db.exec('ALTER TABLE drafts ADD COLUMN message_id TEXT');
@@ -140,10 +140,10 @@ export function openStore(path = DEFAULT_DB) {
 
   return {
     /**
-     * Записать событие. Если любая из ссылок уже есть в базе — это то же событие
-     * (кластер мог получить новый id при росте): обновляем старую запись, статус не сбрасываем.
+     * Write an event. If any of its links is already in the database, it is the same event
+     * (the cluster may have got a new id as it grew): the old record is updated and the status is not reset.
      * ev: { id, title, firstSeen, independentSources, score, reasons, needsOwner, sources:[{source,name,link,published}] }
-     * Возвращает { id, created, status } — status до этой записи.
+     * Returns { id, created, status } — status before this write.
      */
     upsert(ev, now = new Date().toISOString()) {
       const links = ev.sources.map((s) => s.link);
@@ -155,7 +155,7 @@ export function openStore(path = DEFAULT_DB) {
       db.exec('BEGIN IMMEDIATE');
       try {
         const prev = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
-        for (const other of found.slice(1)) { // несколько старых записей оказались одним событием
+        for (const other of found.slice(1)) { // several old records turned out to be one event
           db.prepare('INSERT OR IGNORE INTO event_sources SELECT ?, source, name, link, published FROM event_sources WHERE event_id = ?').run(id, other);
           db.prepare('DELETE FROM events WHERE id = ?').run(other);
         }
@@ -193,11 +193,11 @@ export function openStore(path = DEFAULT_DB) {
     setCategory(id, category) {
       db.prepare('UPDATE events SET category=? WHERE id=?').run(category ?? null, id);
     },
-    /** Группа разнообразия (политика/война, мир и ЧП, наука, …). */
+    /** Diversity group (politics/war, world and emergencies, science, …). */
     setSection(id, section) {
       db.prepare('UPDATE events SET section=? WHERE id=?').run(section ?? null, id);
     },
-    /** Срочное за день: breaking=1 у перечисленных id, у остальных из `scope` — 0. */
+    /** Urgent items of the day: breaking=1 for the listed ids, 0 for the rest of `scope`. */
     setBreakingFlags(breakingIds, scopeIds) {
       const up = db.prepare('UPDATE events SET breaking=? WHERE id=?');
       const on = new Set(breakingIds);
@@ -210,7 +210,7 @@ export function openStore(path = DEFAULT_DB) {
         throw e;
       }
     },
-    /** Лента владельца: top_of_day=1 у перечисленных id, у остальных из `scope` — 0. */
+    /** The owner's feed: top_of_day=1 for the listed ids, 0 for the rest of `scope`. */
     setTopOfDay(topIds, scopeIds) {
       const up = db.prepare('UPDATE events SET top_of_day=? WHERE id=?');
       const top = new Set(topIds);
@@ -223,7 +223,7 @@ export function openStore(path = DEFAULT_DB) {
         throw e;
       }
     },
-    /** Радар: новые записи лент. first_seen ставится один раз (повтор id игнорируется). Возвращает число новых. */
+    /** Radar: new feed records. first_seen is set once (a repeated id is ignored). Returns the number of new ones. */
     addItems(items, { now = new Date().toISOString(), baseline = false } = {}) {
       const ins = db.prepare('INSERT OR IGNORE INTO items (id, source, title, summary, link, published, first_seen, baseline, image, meta) VALUES (?,?,?,?,?,?,?,?,?,?)');
       let added = 0;
@@ -239,20 +239,20 @@ export function openStore(path = DEFAULT_DB) {
     },
     hasItems: (source) => !!db.prepare('SELECT 1 FROM items WHERE source = ? LIMIT 1').get(source),
     itemsSince: (since) => db.prepare('SELECT * FROM items WHERE first_seen >= ? ORDER BY first_seen, id').all(since),
-    /** Время последнего опроса источника (для every_min у источников хайпа). */
+    /** Time of the last poll of a source (for every_min of the hype sources). */
     lastPollTs: (source) => db.prepare('SELECT MAX(ts) AS ts FROM polls WHERE source = ?').get(source).ts ?? null,
     recordPoll(source, { ok, count = 0, error = null }, ts = new Date().toISOString()) {
       db.prepare('INSERT INTO polls (source, ts, ok, count, error) VALUES (?,?,?,?,?)').run(source, ts, ok ? 1 : 0, count, error);
     },
     pollsSince: (since) => db.prepare('SELECT * FROM polls WHERE ts >= ? ORDER BY ts').all(since),
-    /** summary события — из первой записи ленты по его ссылкам (наружу ссылки не отдаём). */
+    /** Event summary — from the first feed record matching its links (links are not exposed outside). */
     summaryOf(eventId) {
       const r = db.prepare("SELECT i.summary FROM event_sources s JOIN items i ON i.link = s.link WHERE s.event_id = ? AND i.summary IS NOT NULL AND i.summary <> '' ORDER BY s.published, s.link LIMIT 1").get(eventId);
       return r?.summary ?? '';
     },
     /**
-     * Черновик события. Один на событие: если уже есть и он не «отклонён кодом» — не трогаем
-     * (возвращает { saved:false }); отклонённый кодом заменяется новой версией.
+     * Event draft. One per event: if one exists and it is not «отклонён кодом» (rejected by code), it is left alone
+     * (returns { saved:false }); a draft rejected by code is replaced with a new version.
      * d: { eventId, style, text, gateOk, reasons }
      */
     addDraft(d, now = new Date().toISOString()) {
@@ -265,7 +265,7 @@ export function openStore(path = DEFAULT_DB) {
       else db.prepare('INSERT INTO drafts (style, text, status, gate_ok, gate_reasons, updated_at, id, event_id, created_at) VALUES (?,?,?,?,?,?,?,?,?)').run(...vals, id, d.eventId, now);
       return { saved: true, id, status };
     },
-    /** Есть ли у события живой черновик (не «отклонён кодом»). */
+    /** Whether the event has a live draft (not «отклонён кодом», i.e. rejected by code). */
     hasDraft: (eventId) => !!db.prepare('SELECT 1 FROM drafts WHERE event_id = ? AND status <> ?').get(eventId, REJECTED_BY_CODE),
     listDrafts({ status } = {}) {
       const sql = `SELECT d.*, e.score FROM drafts d LEFT JOIN events e ON e.id = d.event_id ${status ? 'WHERE d.status = ?' : ''} ORDER BY d.created_at, d.id`;
@@ -282,9 +282,9 @@ export function openStore(path = DEFAULT_DB) {
       return r && { ...r, gate_ok: !!r.gate_ok, gate_reasons: JSON.parse(r.gate_reasons) };
     },
     /**
-     * Действие владельца над черновиком «ждёт одобрения»: меняет черновик и пишет строку в журнал owner_actions
-     * одной транзакцией. action: 'одобрил' | 'отклонил' (detail.reason необязательна) | 'поправил' (text + gateOk + reasons:
-     * правка с непройденными воротами не принимается; в журнале остаются текст до и после).
+     * Owner action on a draft «ждёт одобрения» (awaiting approval): changes the draft and writes a row to the owner_actions journal
+     * in one transaction. action: 'одобрил' | 'отклонил' (detail.reason is optional) | 'поправил' (text + gateOk + reasons:
+     * an edit that fails the gate is not accepted; the journal keeps the text before and after).
      */
     ownerAct(id, action, { text, gateOk, reasons = [], reason = null } = {}, now = new Date().toISOString()) {
       if (!OWNER_ACTIONS.includes(action)) throw new Error(`unknown owner action: ${action}`);
@@ -315,8 +315,8 @@ export function openStore(path = DEFAULT_DB) {
       }
     },
     /**
-     * Отметка владельца в ленте: 'важно' (лайк), 'снял важно', 'не то' (скрыть; detail.reason — неинтересно | повтор | неверно).
-     * Статус черновика не меняется — пишется только строка в owner_actions, в любом статусе.
+     * Owner mark in the feed: 'важно' (like), 'снял важно' (unlike), 'не то' (hide; detail.reason — uninteresting | repeat | wrong).
+     * The draft status is not changed — only a row is written to owner_actions, in any status.
      */
     ownerMark(id, action, { reason = null } = {}, now = new Date().toISOString()) {
       if (!OWNER_MARKS.includes(action)) throw new Error(`unknown mark: ${action}`);
@@ -343,19 +343,19 @@ export function openStore(path = DEFAULT_DB) {
       db.prepare('INSERT OR IGNORE INTO images (draft_id, event_id, file, sha256, url, source, license, author, width, height, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
         .run(r.draftId, r.eventId ?? null, r.file, r.sha256, r.url, r.source, r.license ?? null, r.author ?? null, r.width ?? null, r.height ?? null, now);
     },
-    /** Отметить публикацию: только из «одобрен», один раз. true — отметили, false — уже опубликован или не одобрен. */
+    /** Mark a publication: only from «одобрен» (approved), once. true — marked; false — already published or not approved. */
     markPublished(id, messageId, now = new Date().toISOString()) {
       return db.prepare('UPDATE drafts SET status=?, message_id=?, published_at=?, updated_at=? WHERE id=? AND status=?')
         .run('опубликован', String(messageId), now, now, id, 'одобрен').changes > 0;
     },
-    /** Времена публикаций не раньше since (ISO), по возрастанию. */
-    // «Срочно» идёт вне часовой очереди и в её лимит не входит
+    /** Publication times not earlier than since (ISO), ascending. */
+    // «Срочно» (urgent) goes outside the hourly queue and does not count toward its limit
     publishedTimes: (since = '') => db.prepare("SELECT published_at FROM drafts WHERE published_at IS NOT NULL AND published_at >= ? AND id NOT IN (SELECT draft_id FROM broadcasts WHERE kind = 'срочно' AND draft_id IS NOT NULL) ORDER BY published_at").all(since).map((r) => r.published_at),
     /**
-     * Сетка дня: дайджесты ('утро', 'вечер'; key = день по МСК) и «срочно» (key = id черновика).
-     * Бронь строки — до отправки: повторный проход не пошлёт то же дважды. true — бронь наша.
+     * Daily schedule: digests ('утро', 'вечер'; key = day in MSK) and «срочно» (urgent) (key = draft id).
+     * A row reservation happens before sending: a repeated pass will not send the same thing twice. true — the reservation is ours.
      */
-    /** Снять бронь, если сообщение не ушло (чтобы следующий проход попробовал снова). */
+    /** Release the reservation if the message was not sent (so the next pass can try again). */
     releaseBroadcast: (kind, key) => db.prepare('DELETE FROM broadcasts WHERE kind = ? AND key = ?').run(kind, key).changes > 0,
     claimBroadcast(kind, key, { day = null, draftId = null, eventIds = [] } = {}, now = new Date().toISOString()) {
       return db.prepare('INSERT OR IGNORE INTO broadcasts (kind, key, day, draft_id, event_ids, created_at) VALUES (?,?,?,?,?,?)')
@@ -368,7 +368,7 @@ export function openStore(path = DEFAULT_DB) {
       db.prepare('DELETE FROM broadcasts WHERE kind=? AND key=? AND published_at IS NULL').run(kind, key);
     },
     hasBroadcast: (kind, key) => !!db.prepare('SELECT 1 FROM broadcasts WHERE kind=? AND key=?').get(kind, key),
-    /** Выпущенные (с published_at) записи сетки дня, по возрастанию времени. */
+    /** Published (with published_at) daily-schedule records, ascending by time. */
     broadcasts({ kind, since = '', day } = {}) {
       const rows = db.prepare('SELECT * FROM broadcasts WHERE published_at IS NOT NULL AND published_at >= ? ORDER BY published_at').all(since);
       return rows.filter((r) => (!kind || r.kind === kind) && (!day || r.day === day)).map((r) => ({ ...r, event_ids: JSON.parse(r.event_ids) }));

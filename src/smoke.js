@@ -3,9 +3,9 @@ import { fetchFeed, loadSources } from './collect.js';
 import { isHype } from './hype/index.js';
 
 const FRESH_MS = 6 * 3600 * 1000;
-const SLOW_MS = 48 * 3600 * 1000; // редкие ленты (ООН выходит раз в сутки): окно свежести 48 часов
+const SLOW_MS = 48 * 3600 * 1000; // rare feeds (UN publishes once a day): freshness window of 48 hours
 
-/** Живой проход по лентам (в базу ничего не пишет). ok = нет ошибок и у каждой ленты есть запись младше 6 часов. */
+/** Live pass over the feeds (writes nothing to the database). ok = no errors and every feed has a record younger than 6 hours. */
 export async function smoke(sources, { loader = fetchFeed, now = Date.now() } = {}) {
   const results = await Promise.allSettled(sources.map((s) => loader(s)));
   const rows = results.map((r, i) => {
@@ -26,7 +26,7 @@ export function formatSmoke({ rows }) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const res = await smoke((await loadSources()).filter((s) => !isHype(s))); // у сигналов хайпа нет «свежести лент»: их проверяет живой сбор радара
+  const res = await smoke((await loadSources()).filter((s) => !isHype(s))); // hype signals have no "feed freshness": the radar's live collection checks them
   console.log(formatSmoke(res));
   process.exit(res.ok ? 0 : 1);
 }

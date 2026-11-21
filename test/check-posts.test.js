@@ -10,7 +10,7 @@ import { toEvalEvents, stripLinks } from '../src/export-eval.js';
 const good = { id: 'a1', style: 'сухо', text: 'В Испании столкнулись два поезда, погибли не менее 30 человек.' };
 const bad = { id: 'a2', style: 'сухо', text: 'Подробности: https://example.com/news/1' };
 
-test('checkPosts: хороший ok, плохой не ok с причиной', () => {
+test('checkPosts: good → ok, bad → not ok with a reason', () => {
   const { rows, ok } = checkPosts([good, bad]);
   assert.equal(ok, false);
   assert.equal(rows[0].ok, true);
@@ -18,7 +18,7 @@ test('checkPosts: хороший ok, плохой не ok с причиной', 
   assert.match(rows[1].reasons.join(), /link/);
 });
 
-test('check-posts CLI: код 0 для хорошего, 1 для плохого', () => {
+test('check-posts CLI: exit code 0 for a good post, 1 for a bad one', () => {
   const dir = mkdtempSync(join(tmpdir(), 'posts-'));
   const run = (posts) => {
     const f = join(dir, 'p.json');
@@ -33,7 +33,7 @@ test('check-posts CLI: код 0 для хорошего, 1 для плохого
   assert.match(r1.stdout, /a2 — not ok/);
 });
 
-test('toEvalEvents: без ссылок и названий лент', () => {
+test('toEvalEvents: no links or feed names', () => {
   const ev = [{ id: 'x', title: 'T https://a.b/c', independent_sources: 2, score: 50, status: 'отобрано', reasons: ['r'], sources: [{ source: 'bbc', name: 'BBC', link: 'https://l/1' }] }];
   const out = toEvalEvents(ev, [{ link: 'https://l/1', summary: 'Текст https://l/1 конец' }]);
   assert.deepEqual(out[0], { id: 'x', title: 'T', summary: 'Текст конец', independent: 2, score: 50, status: 'отобрано', reasons: ['r'] });

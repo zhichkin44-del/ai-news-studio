@@ -8,7 +8,7 @@ export class HttpError extends Error {
   }
 }
 
-/** GET одним запросом. Не 2xx — HttpError со статусом (429 обрабатывает вызывающий). */
+/** A single GET request. Not 2xx — HttpError with the status (429 is handled by the caller). */
 export async function getText(url, { fetchImpl = fetch, timeoutMs = 15000, headers = {} } = {}) {
   const res = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs), headers: { 'user-agent': UA, ...headers } });
   if (!res.ok) throw new HttpError(res.status, url);
@@ -24,7 +24,7 @@ export const iso = (t) => {
   return Number.isFinite(n) ? new Date(n).toISOString() : null;
 };
 
-/** «2K+», «1,5M+», «100+» → число. */
+/** «2K+», «1,5M+», «100+» (formats such as these) → number. */
 export function parseTraffic(s) {
   const m = String(s ?? '').replace(/\s/g, '').match(/^([\d.,]+)([KkКкMmМмBb]?)/);
   if (!m) return 0;

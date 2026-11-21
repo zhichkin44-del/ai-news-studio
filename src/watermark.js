@@ -9,9 +9,9 @@ import { findBrowser, brandOf } from './card.js';
 import { DEFAULT_CONFIG } from './score.js';
 
 /**
- * Водяной знак «AI NEWS STUDIO» на картинках публичного канала (решение владельца 30.10):
- * угловая жёлтая плашка (у фото — справа внизу, у карточки — справа вверху, чтобы не закрыть её нижнюю строку с брендом) + (для фото) лёгкая диагональная надпись узором. Рендер — headless Chrome/Edge,
- * как в card.js; результат — JPEG q≥0.92 (canvas → --dump-dom), пропорции сохраняются, длинная сторона ≤ 2048.
+ * Watermark «AI NEWS STUDIO» on pictures of the public channel (owner's decision of 30.10):
+ * a yellow corner tag (on photos — bottom right, on cards — top right, so it does not cover the card's bottom brand line) + (for photos) a faint diagonal text pattern. Rendering — headless Chrome/Edge,
+ * as in card.js; the result is a JPEG q≥0.92 (canvas → --dump-dom), proportions kept, long side ≤ 2048.
  */
 export const MAX_SIDE = 2048;
 export const JPEG_QUALITY = 0.92;
@@ -21,10 +21,10 @@ export class WatermarkError extends Error {
   constructor(code, message) { super(message); this.name = 'WatermarkError'; this.code = code; }
 }
 
-/** 'on' | 'off': явное значение конфигурации, иначе on (публичный канал). Личная лента и «Моя лента» знак не вызывают. */
+/** 'on' | 'off': an explicit config value, otherwise on (public channel). The personal feed and «Моя лента» (My feed) do not invoke the mark. */
 export const watermarkModeOf = (config = DEFAULT_CONFIG) => (config?.watermark === 'off' ? 'off' : 'on');
 
-/** Размер картинки по заголовку: PNG, JPEG, WebP → { width, height } | null. */
+/** Image size from the header: PNG, JPEG, WebP → { width, height } | null. */
 export function imageSize(buf) {
   if (!buf || buf.length < 24) return null;
   if (buf.readUInt32BE(0) === 0x89504e47) return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
@@ -50,7 +50,7 @@ export function imageSize(buf) {
   return null;
 }
 
-/** Размер результата: пропорции те же, длинная сторона не больше MAX_SIDE. */
+/** Result size: same proportions, long side no more than MAX_SIDE. */
 export function fitSize({ width, height }, max = MAX_SIDE) {
   const k = Math.min(1, max / Math.max(width, height));
   return { width: Math.max(1, Math.round(width * k)), height: Math.max(1, Math.round(height * k)) };
@@ -60,8 +60,8 @@ const MIME = (buf) => (buf[0] === 0xff ? 'image/jpeg' : buf[0] === 0x89 ? 'image
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 /**
- * HTML-страница: картинка (data:) рисуется на canvas вместе со знаком, JPEG кладётся в <pre id="out">.
- * corner — угловая плашка (всегда); diagonal — узор по всей картинке (только фото).
+ * HTML page: the picture (data:) is drawn on a canvas together with the mark; the JPEG is put into <pre id="out">.
+ * corner — the corner tag (always); diagonal — the pattern across the whole picture (photos only).
  */
 export function watermarkHtml({ dataUri, width, height, brand, diagonal = true }) {
   const cfg = JSON.stringify({ width, height, brand, diagonal, top: !diagonal, alpha: DIAGONAL_ALPHA, q: JPEG_QUALITY });
@@ -104,7 +104,7 @@ const runDump = (cmd, args, timeout) => new Promise((resolve, reject) => {
   execFile(cmd, args, { timeout, windowsHide: true, maxBuffer: 200 * 1024 * 1024, encoding: 'utf8' }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
 });
 
-/** Достаёт JPEG из выгрузки DOM. null — нет данных. */
+/** Extracts the JPEG from the DOM dump. null — no data. */
 export function extractJpeg(dom) {
   const m = /<pre id="out">data:image\/jpeg;base64,([A-Za-z0-9+/=]+)<\/pre>/.exec(String(dom ?? ''));
   if (!m) return null;
@@ -113,9 +113,9 @@ export function extractJpeg(dom) {
 }
 
 /**
- * Наложить знак на файл картинки. opts: { outFile, kind: 'photo'|'card', config, browser, exec }.
- * kind 'card' — только угловой знак. Возвращает { file, sha256, width, height }.
- * Нет браузера / не удалось отрисовать — WatermarkError ('no-browser' | 'format' | 'render').
+ * Apply the mark to a picture file. opts: { outFile, kind: 'photo'|'card', config, browser, exec }.
+ * kind 'card' — the corner mark only. Returns { file, sha256, width, height }.
+ * No browser / rendering failed — WatermarkError ('no-browser' | 'format' | 'render').
  */
 export async function watermark(file, { outFile, kind = 'photo', config = DEFAULT_CONFIG, browser, exec = runDump, timeoutMs = 40000 } = {}) {
   const exe = browser === undefined ? findBrowser() : browser;
@@ -150,8 +150,8 @@ export async function watermark(file, { outFile, kind = 'photo', config = DEFAUL
 }
 
 /**
- * Для публикации: файл → файл со знаком в <dir>/wm/<sha исходника + вид + бренд>.jpg, повторно не рендерится.
- * source 'card' — только угловой знак. Ошибка пробрасывается (вызывающий не отправляет оригинал).
+ * For publishing: file → file with the mark in <dir>/wm/<source sha + kind + brand>.jpg; it is not rendered again.
+ * source 'card' — the corner mark only. The error is propagated (the caller does not send the original).
  */
 export async function watermarkCached(file, { source = 'feed', dir = join(dirname(file), 'wm'), config = DEFAULT_CONFIG, ...rest } = {}) {
   const kind = source === 'card' ? 'card' : 'photo';

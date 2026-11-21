@@ -16,19 +16,19 @@ export const HIGH_SCORE = 60;
 const round = (x, d = 3) => (x == null ? null : Math.round(x * 10 ** d) / 10 ** d);
 const share = (n, d) => (d ? round(n / d) : null);
 
-/** Доля событий с оценкой ≥ min (цель — не больше ~10 % всех: топ не должен раздуваться). */
+/** Share of events with score ≥ min (target — no more than ~10% of all: the top must not swell). */
 export function highShare(scores, min = HIGH_SCORE) {
   return share(scores.filter((s) => s >= min).length, scores.length);
 }
 
-/** Перцентиль по ближайшему рангу; пустой набор — null. */
+/** Percentile by nearest rank; an empty set — null. */
 export function percentile(values, p) {
   if (!values.length) return null;
   const s = [...values].sort((a, b) => a - b);
   return s[Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1))];
 }
 
-/** Задержка, мс: first_seen − published. Только записи не из первого опроса ленты (baseline) и с датой публикации. */
+/** Latency, ms: first_seen − published. Only records that are not from a feed's first poll (baseline) and have a publication date. */
 function latencies(items) {
   return items
     .filter((i) => !i.baseline && i.published)
@@ -46,12 +46,12 @@ function latencyStats(items) {
   };
 }
 
-/** Метрики сбора за последние `hours` часов по базе. */
+/** Collection metrics over the last `hours` hours from the database. */
 export function computeMetrics(store, { now = new Date(), hours = 24, sources = [], groups = {} } = {}) {
   const since = new Date(now.getTime() - hours * 3600e3).toISOString();
   const freshSince = now.getTime() - FRESH_MS;
   const hypeIds = new Set(sources.filter((s) => s.type === 'hype').map((s) => s.id));
-  const items = store.itemsSince(since).filter((i) => !hypeIds.has(i.source)); // сигналы хайпа — не ленты СМИ
+  const items = store.itemsSince(since).filter((i) => !hypeIds.has(i.source)); // hype signals are not media feeds
   const polls = store.pollsSince(since).filter((p) => !hypeIds.has(p.source));
 
   const clusters = items.length ? cluster(items, 0.4, groups) : [];

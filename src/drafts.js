@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.js';
 
-/** Черновики, ждущие одобрения, в виде для пульта. */
+/** Drafts awaiting approval, in the form used by the control panel. */
 export function pendingDrafts(store) {
   return store.listDrafts({ status: 'ждёт одобрения' }).map((d) => ({
     id: d.id,

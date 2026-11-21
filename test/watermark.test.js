@@ -13,7 +13,7 @@ const jpg = (w, h) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 4, 
 const fakeJpeg = (w, h) => Buffer.concat([jpg(w, h), Buffer.alloc(200, 1)]);
 const domOf = (buf) => `<html><body><pre id="out">data:image/jpeg;base64,${buf.toString('base64')}</pre></body></html>`;
 
-test('размер: png, jpeg; fitSize сохраняет пропорции и режет до 2048', () => {
+test('size: png, jpeg; fitSize keeps proportions and caps at 2048', () => {
   assert.deepEqual(imageSize(png(800, 600)), { width: 800, height: 600 });
   assert.deepEqual(imageSize(jpg(1200, 630)), { width: 1200, height: 630 });
   assert.equal(imageSize(Buffer.alloc(40)), null);
@@ -22,14 +22,14 @@ test('размер: png, jpeg; fitSize сохраняет пропорции и 
   assert.deepEqual(fitSize({ width: 1500, height: 3000 }), { width: 1024, height: 2048 });
 });
 
-test('режим: по умолчанию on, off — только явно', () => {
+test('mode: on by default; off only when set explicitly', () => {
   assert.equal(watermarkModeOf({}), 'on');
   assert.equal(watermarkModeOf(undefined), 'on');
   assert.equal(watermarkModeOf({ watermark: 'on' }), 'on');
   assert.equal(watermarkModeOf({ watermark: 'off' }), 'off');
 });
 
-test('html: диагональ у фото есть, у карточки нет; JPEG ≥ 0.88', () => {
+test('html: diagonal present on photos, absent on cards; JPEG ≥ 0.88', () => {
   const photo = watermarkHtml({ dataUri: 'data:image/png;base64,AA', width: 100, height: 50, brand: 'AI NEWS STUDIO', diagonal: true });
   const card = watermarkHtml({ dataUri: 'data:image/png;base64,AA', width: 100, height: 50, brand: 'AI NEWS STUDIO', diagonal: false });
   assert.match(photo, /"diagonal":true/);
@@ -39,7 +39,7 @@ test('html: диагональ у фото есть, у карточки нет;
   assert.equal(extractJpeg('<pre id="out">ERROR</pre>'), null);
 });
 
-test('без браузера — WatermarkError no-browser', async () => {
+test('no browser — WatermarkError no-browser', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'wmt-'));
   try {
     const f = join(dir, 'a.png'); await writeFile(f, png(10, 10));
@@ -47,7 +47,7 @@ test('без браузера — WatermarkError no-browser', async () => {
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('рендер: размер не меняется, 4096 → 2048; сломанный ответ — ошибка render', async () => {
+test('render: size unchanged, 4096 → 2048; a broken response — a render error', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'wmt-'));
   try {
     const f = join(dir, 'a.png'); await writeFile(f, png(900, 600));
@@ -66,7 +66,7 @@ test('рендер: размер не меняется, 4096 → 2048; слом�
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('кэш: второй вызов не рендерит; card — отдельный ключ без диагонали', async () => {
+test('cache: the second call does not render; card — a separate key without the diagonal', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'wmt-'));
   try {
     const f = join(dir, 'a.png'); await writeFile(f, png(300, 200));
@@ -86,7 +86,7 @@ test('кэш: второй вызов не рендерит; card — отдел
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-// ───── публикация ─────
+// ───── publishing ─────
 
 const T0 = new Date('2026-10-30T10:00:00.000Z');
 function queue(source = 'og') {
@@ -99,7 +99,7 @@ function queue(source = 'og') {
 }
 const okSend = () => { const calls = []; return { calls, send: async (r) => { calls.push(r); return { message_id: 7 }; } }; };
 
-test('публикация: фото уходит файлом со знаком, а не оригиналом; source передаётся', async () => {
+test('publishing: the photo goes out as a file with the mark, not the original; source is passed', async () => {
   const { send, calls } = okSend();
   const seen = [];
   const r = await runQueue({ store: queue('card'), chat: '@c', send, now: T0, mark: async (f, o) => { seen.push([f, o.source]); return { file: 'data/images/wm/x.jpg' }; } });
@@ -109,7 +109,7 @@ test('публикация: фото уходит файлом со знаком
   assert.deepEqual(seen, [['data/images/orig.jpg', 'card']]);
 });
 
-test('публикация: ошибка знака — текст без картинки, оригинал не уходит, пост не откладывается', async () => {
+test('publishing: a mark error — text without a picture, the original does not go out, the post is not deferred', async () => {
   const { send, calls } = okSend();
   const r = await runQueue({ store: queue(), chat: '@c', send, now: T0, mark: async () => { throw new WatermarkError('no-browser', 'no browser'); } });
   assert.equal(r.published.length, 1);
@@ -118,14 +118,14 @@ test('публикация: ошибка знака — текст без кар
   assert.match(r.warnings[0].reason, /no browser/);
 });
 
-test('публикация: watermark off — оригинал без вызова знака', async () => {
+test('publishing: watermark off — the original, without calling the mark', async () => {
   const { send, calls } = okSend();
   const r = await runQueue({ store: queue(), chat: '@c', send, now: T0, config: { watermark: 'off' }, mark: async () => { throw new Error('не должен вызываться'); } });
   assert.equal(r.published.length, 1);
   assert.equal(calls[0].params.photo, 'data/images/orig.jpg');
 });
 
-test('публикация без браузера по умолчанию: пост уходит текстом', async () => {
+test('publishing without a browser by default: the post goes out as text', async () => {
   const { send, calls } = okSend();
   const prev = process.env.CARD_BROWSER;
   process.env.CARD_BROWSER = join(tmpdir(), 'no-such-browser.exe');

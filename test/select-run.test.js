@@ -21,10 +21,10 @@ function fixture() {
   return s;
 }
 
-test('select: окно по часам, итог, статусы', () => {
+test('select: window by hours, totals, statuses', () => {
   const s = fixture();
   const r = selectEvents(s, { hours: 24, now: NOW });
-  assert.equal(r.items, 3); // старая запись вне окна
+  assert.equal(r.items, 3); // the old record is outside the window
   assert.equal(r.events, 2);
   const all = s.list();
   const quake = all.find((e) => e.title.includes('Землетрясение'));
@@ -37,7 +37,7 @@ test('select: окно по часам, итог, статусы', () => {
   s.close();
 });
 
-test('select: идемпотентен, дублей нет', () => {
+test('select: idempotent, no duplicates', () => {
   const s = fixture();
   selectEvents(s, { hours: 24, now: NOW });
   const before = s.list().map((e) => [e.id, e.status, e.score]);
@@ -48,7 +48,7 @@ test('select: идемпотентен, дублей нет', () => {
   s.close();
 });
 
-test('select: выпущенное и с черновиком статус не сбрасывает', () => {
+test('select: published and drafted items keep their status', () => {
   const s = fixture();
   selectEvents(s, { hours: 24, now: NOW });
   const [q, b] = [s.list().find((e) => e.title.includes('Землетрясение')), s.list().find((e) => e.title.includes('скамейку'))];
@@ -62,7 +62,7 @@ test('select: выпущенное и с черновиком статус не 
   s.close();
 });
 
-test('select: окно --hours сужается', () => {
+test('select: the --hours window narrows', () => {
   const s = fixture();
   const r = selectEvents(s, { hours: 0.1, now: NOW });
   assert.equal(r.items, 0);

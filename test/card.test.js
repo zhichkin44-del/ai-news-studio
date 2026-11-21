@@ -8,7 +8,7 @@ import { attachImage } from '../src/images.js';
 import { formatPost } from '../src/publish.js';
 import { extractNumber, pickLayout, wrapText, fitText, splitPost, labelFor, cardModel, cardHtml, gateCard, renderCard, findBrowser, cardModeOf, brandOf, CardError, LABELS, iconSvg } from '../src/card.js';
 
-test('число: процент, сумма, жертвы, величина; годы не считаются', () => {
+test('number: percent, sum, casualties, value; years are not counted', () => {
   assert.deepEqual(extractNumber('Инфляция выросла на 12,5% за месяц'), { text: '12,5%', unit: '', kind: 'percent', value: 12.5, share: 0.125 });
   const m = extractNumber('Банк выделит 5 млрд долларов на проект');
   assert.equal(m.text, '$5 млрд');
@@ -24,13 +24,13 @@ test('число: процент, сумма, жертвы, величина; г
   assert.equal(extractNumber('Президент выступил с речью'), null);
 });
 
-test('выбор макета: цифра или заголовок', () => {
+test('layout choice: number or headline', () => {
   assert.equal(pickLayout('Взрыв: 5 погибших'), 'number');
   assert.equal(pickLayout('Президент выступил с речью'), 'headline');
-  assert.equal(cardModel({ text: 'Президент выступил\n\nПодробности позже.' }).caption, 'Подробности позже'); // без цифры — короткая строка главного
+  assert.equal(cardModel({ text: 'Президент выступил\n\nПодробности позже.' }).caption, 'Подробности позже'); // no figure — a short lead line
 });
 
-test('перенос по словам и сжатие кегля', () => {
+test('word wrap and font-size shrinking', () => {
   assert.deepEqual(wrapText('один два три четыре', 9), ['один два', 'три', 'четыре']);
   assert.deepEqual(wrapText('сверхдлинноеслово', 6), ['сверхд', 'линное', 'слово']);
   const short = fitText('Короткий заголовок', { width: 920, maxLines: 3, maxSize: 100, minSize: 40 });
@@ -43,24 +43,24 @@ test('перенос по словам и сжатие кегля', () => {
   for (const l of huge.lines) assert.ok(l.length * huge.size * 0.6 <= 920 + huge.size);
 });
 
-test('заголовок — первая строка; подпись — первая фраза', () => {
+test('headline — first line; caption — first sentence', () => {
   const s = splitPost('⚡️ Столкновение поездов в Испании.\n\nПоезда столкнулись под Толедо. Есть жертвы. Третья фраза.');
   assert.equal(s.headline, 'Столкновение поездов в Испании');
   assert.ok(s.caption.startsWith('Поезда столкнулись'));
 });
 
-test('метка категории', () => {
+test('category label', () => {
   assert.equal(labelFor('Взрыв на заводе', null), 'ЧП');
   assert.equal(labelFor('Нефть подешевела', 'world'), 'Деньги');
   assert.equal(labelFor('Открыт новый вид', 'science'), 'Наука');
   assert.equal(labelFor('Выборы в стране', null), 'Мир');
-  // слова о жертвах в теле поста метку не меняют: смотрим только заголовок
+  // casualty words in the body do not change the label: only the headline is checked
   assert.equal(cardModel({ text: 'Семьи в лагерях Газы готовятся к зиме\n\nПогибли и ранены тысячи, жертв много.' }).label, 'Мир');
   assert.equal(cardModel({ text: 'Взрыв на заводе\n\nПодробности позже.' }).label, 'ЧП');
   for (const l of LABELS) assert.match(iconSvg(l), /<svg/);
 });
 
-test('ворота по тексту карточки: ссылки и издания не проходят', () => {
+test('card text gate: links and outlet names do not pass', () => {
   assert.equal(gateCard(cardModel({ text: 'Заголовок\n\nПодпись.' })).ok, true);
   assert.equal(gateCard(cardModel({ text: 'Заголовок https://x.ru/a' })).ok, false);
   assert.equal(gateCard(cardModel({ text: 'Заголовок про выборы\n\nпо сообщению Reuters' })).ok, false);
@@ -70,14 +70,14 @@ test('ворота по тексту карточки: ссылки и изда�
   assert.doesNotMatch(html.replace('http://www.w3.org/2000/svg', ''), /https?:/);
 });
 
-test('бренд и режим читаются из конфига, режим по умолчанию fallback', () => {
+test('brand and mode are read from config; default mode is fallback', () => {
   assert.equal(brandOf({ brand: 'ИКС' }), 'ИКС');
   assert.equal(cardModeOf({}), 'fallback');
   assert.equal(cardModeOf({ card_mode: 'always' }), 'always');
   assert.equal(cardModeOf({ card_mode: 'мусор' }), 'fallback');
 });
 
-test('нет браузера — понятная ошибка, а не падение', async () => {
+test('no browser — a clear error, not a crash', async () => {
   assert.equal(findBrowser({ env: {}, exists: () => false }), null);
   assert.equal(findBrowser({ env: { CARD_BROWSER: 'C:/x/chrome.exe' }, exists: () => false }), null);
   assert.equal(findBrowser({ env: { PROGRAMFILES: 'C:/PF' }, exists: (p) => p.endsWith('Edge/Application/msedge.exe') }), 'C:/PF/Microsoft/Edge/Application/msedge.exe');
@@ -85,7 +85,7 @@ test('нет браузера — понятная ошибка, а не пад�
   await assert.rejects(renderCard({ text: 'Заголовок https://x.ru' }, { browser: 'b', outFile: 'x.png' }), (e) => e.code === 'gate');
 });
 
-// PNG-заглушка нужного размера вместо браузера
+// PNG stub of the required size instead of a browser
 const fakePng = (tail = 'a') => {
   const b = Buffer.alloc(40);
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b);
@@ -97,7 +97,7 @@ const fakeExec = async (_exe, args) => {
   await writeFile(out, fakePng());
 };
 
-test('renderCard: вызывает браузер и возвращает файл 1080×1350', async () => {
+test('renderCard: calls the browser and returns a 1080×1350 file', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'cardt-'));
   const r = await renderCard({ text: 'Рынок упал на 7%\n\nИндекс снизился.' }, { browser: 'fake', outFile: join(dir, 'a.png'), exec: fakeExec });
   assert.equal(r.width, 1080);
@@ -105,7 +105,7 @@ test('renderCard: вызывает браузер и возвращает фай
   assert.equal(r.layout, 'number');
 });
 
-test('images: режимы card_mode — fallback, always, off', async () => {
+test('images: card_mode modes — fallback, always, off', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'cardi-'));
   const store = openStore(':memory:');
   const draft = (id) => ({ id, event_id: 'e-none', text: 'Рынок упал на 7%\n\nИндекс снизился.', created_at: '2026-10-30T10:00:00Z' });
@@ -115,7 +115,7 @@ test('images: режимы card_mode — fallback, always, off', async () => {
   assert.equal(a.source, 'card');
   assert.equal(a.url, 'card:d1');
   assert.equal(a.width, 1080);
-  assert.equal((await attachImage(store, draft('d1'), { dir, render })).id, a.id); // повтор — no-op
+  assert.equal((await attachImage(store, draft('d1'), { dir, render })).id, a.id); // repeat — no-op
   const b = await attachImage(store, draft('d2'), { dir, fetchImpl: noNet, render, config: { card_mode: 'off' } });
   assert.equal(b, null);
   const c = await attachImage(store, draft('d3'), { dir, fetchImpl: () => { throw new Error('фото не должно запрашиваться'); }, render, config: { card_mode: 'always' } });
@@ -123,7 +123,7 @@ test('images: режимы card_mode — fallback, always, off', async () => {
   store.close();
 });
 
-test('публикация карточки: sendPhoto с подписью = текст поста', () => {
+test('card publishing: sendPhoto with the post text as caption', () => {
   const req = formatPost('@ch', { text: 'Текст поста', image: 'data/images/card-d1.png' });
   assert.equal(req.method, 'sendPhoto');
   assert.equal(req.params.caption, 'Текст поста');

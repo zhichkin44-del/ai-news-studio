@@ -3,26 +3,26 @@ import { openStore, DEFAULT_DB } from './store.js';
 import { DEFAULT_CONFIG } from './score.js';
 import { POLITICS, pickDiverse, peakOf } from './diversity.js';
 
-const TZ = 7; // часовой пояс владельца, UTC+7
+const TZ = 7; // owner's time zone, UTC+7
 const HOUR = 3.6e6;
 
-/** Время из флага: ISO с зоной (Z, +03:00) как есть; без зоны — по UTC+7. NaN, если не время. */
+/** Time from a flag: ISO with a zone (Z, +03:00) as is; without a zone — UTC+7. NaN if it is not a time. */
 export function parseLocal(s) {
   const str = String(s ?? '').trim();
   return Date.parse(/(Z|[+-]\d\d:?\d\d)$/i.test(str) ? str : `${str}${str.length <= 10 ? 'T00:00:00' : ''}+0${TZ}:00`);
 }
 
-/** Последняя ночь 18:00→08:00 по UTC+7, уже закончившаяся к моменту now: { from, to } (Date). */
+/** Last night 18:00→08:00 in UTC+7 that had already ended by `now`: { from, to } (Date). */
 export function lastNight(now = new Date()) {
-  const local = new Date(now.getTime() + TZ * HOUR); // «стенные» часы UTC+7 в полях UTC
+  const local = new Date(now.getTime() + TZ * HOUR); // UTC+7 "wall-clock" hours in the UTC fields
   let to = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), 8) - TZ * HOUR;
   if (to > now.getTime()) to -= 24 * HOUR;
   return { from: new Date(to - 14 * HOUR), to: new Date(to) };
 }
 
 /**
- * «Главное за ночь»: до `limit` лучших событий с first_seen в [from, to), без отклонённых.
- * Возвращает [{ id, title, score, category }] по убыванию оценки.
+ * "Top of the night": up to `limit` best events with first_seen in [from, to), excluding rejected ones.
+ * Returns [{ id, title, score, category }] in descending score order.
  */
 export function digest(store, { from, to, limit = 7, config = DEFAULT_CONFIG } = {}) {
   const a = from.getTime();

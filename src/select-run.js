@@ -9,23 +9,23 @@ import { DEFAULT_CONFIG, isBreaking } from './score.js';
 import { POLITICS, pickDiverse, peakOf, sectionOf, sectionFor } from './diversity.js';
 import { openStore, DEFAULT_DB } from './store.js';
 
-/** Статус по решению decide: отобрано / отклонено (ворота) / новое (ниже порога, один источник — может подрасти). */
+/** Status from the decide result: selected («отобрано») / rejected («отклонено», gate) / new («новое»: below threshold, single source — may still grow). */
 export function selectStatus(c, d) {
   if (d.status !== 'отклонено') return ['отобрано', d.reason ?? (d.sc.single ? 'одно-источниковое: ждёт одобрения владельца' : null)];
   if (d.gate.ok && c.sourceCount < 2) return ['новое', d.reason];
   return ['отклонено', d.reason];
 }
 
-/** Календарный день first_seen по времени владельца (UTC+tz), 'YYYY-MM-DD'; null, если времени нет. */
+/** Calendar day of first_seen in the owner's time (UTC+tz), 'YYYY-MM-DD'; null if there is no time. */
 export function ownerDay(firstSeen, tzHours = 7) {
   const t = Date.parse(firstSeen ?? '');
   return Number.isNaN(t) ? null : new Date(t + tzHours * 3.6e6).toISOString().slice(0, 10);
 }
 
 /**
- * Топ дня: события с оценкой ≥ min (кроме отклонённых воротами), до perDay за календарный день,
- * с миксом: не больше perGroup одной группы и минимум minOutside вне политики, если такое есть.
- * events: [{ id, score, peak_score, section, category, first_seen, status }]. Возвращает Set id.
+ * Top of the day: events with score ≥ min (except those rejected by the gate), up to perDay per calendar day,
+ * with a mix: no more than perGroup from one group and at least minOutside outside politics, if there are any.
+ * events: [{ id, score, peak_score, section, category, first_seen, status }]. Returns a Set of ids.
  */
 export function topOfDay(events, {
   min = 40, perDay = 7, tzHours = 7, perGroup = 2, minOutside = 3, politics = POLITICS, relax = 0, ceilings = null,
@@ -33,7 +33,7 @@ export function topOfDay(events, {
   const byDay = new Map();
   for (const e of events) {
     const day = ownerDay(e.first_seen, tzHours);
-    // не политика/война проходит с пониженным порогом (relax): квота не добивается войной
+    // non-politics/war passes at a lowered threshold (relax): the quota is not filled with war
     const floor = sectionOf(e) === politics ? min : min - relax;
     if (!day || e.status === 'отклонено' || !(peakOf(e) >= floor)) continue;
     if (!byDay.has(day)) byDay.set(day, []);
@@ -47,8 +47,8 @@ export function topOfDay(events, {
 }
 
 /**
- * По одной последней записи на издателя (groups сводит ленты одного издателя).
- * event_sources копит ссылки за все прогоны, поэтому для «срочного» нельзя считать их все.
+ * One latest record per publisher (groups merges feeds of one publisher).
+ * event_sources accumulates links across all runs, so for «срочное» (urgent) they cannot all be counted.
  */
 export function latestPerPublisher(sources, groups = {}) {
   const latest = new Map();
@@ -61,8 +61,8 @@ export function latestPerPublisher(sources, groups = {}) {
 }
 
 /**
- * Всплеск → кластер для decide: заголовок из лент СМИ (иначе сильнейший сигнал), в источниках события — все записи всплеска
- * (ссылки хранятся только в базе). Независимых источников = издатели СМИ + виды сигналов. Свежесть и рост — по последнему часу.
+ * Spike → cluster for decide: the headline comes from media feeds (otherwise the strongest signal); the event's sources are all records of the spike
+ * (links are stored only in the database). Independent sources = media publishers + signal kinds. Freshness and growth — over the last hour.
  */
 export function burstCluster(b, { now = Date.now(), kinds = {}, groups = {}, config = BURST_CONFIG } = {}) {
   const recentFrom = now - config.recent_minutes * 60000;
@@ -83,18 +83,18 @@ export function burstCluster(b, { now = Date.now(), kinds = {}, groups = {}, con
 }
 
 /**
- * Записи items за последние `hours` часов → кластеры → оценка → события в базе.
- * Выпущенное и событие с черновиком не трогаем (статус не сбрасывается). Постов и файлов не пишем.
+ * Items from the last `hours` hours → clusters → score → events in the database.
+ * Published events and events with a draft are not touched (status is not reset). No posts or files are written.
  */
 export function selectEvents(store, { hours = 24, now = new Date(), groups = {}, names = {}, sourceMeta = {}, scoreConfig, kinds = {}, burstConfig } = {}) {
   const cfg = scoreConfig ?? DEFAULT_CONFIG;
   const since = new Date(now.getTime() - hours * 3.6e6).toISOString();
   const rows = store.itemsSince(since);
-  // сигналы хайпа (Reddit, Trends, …) — не новости: в кластеры идут только ленты СМИ
+  // hype signals (Reddit, Trends, …) are not news: only media feeds go into clusters
   const toItem = (r) => ({ id: r.id, source: r.source, title: r.title, summary: r.summary ?? '', link: r.link, published: r.published });
   const bursts = Object.keys(kinds).length ? detectBursts(rows, {
     now: now.getTime(), kinds, config: burstConfig,
-    known: store.list().filter((e) => e.top_of_day && !e.hype).map((e) => e.title), // тема уже в топе — не новая
+    known: store.list().filter((e) => e.top_of_day && !e.hype).map((e) => e.title), // topic already in the top — not new
   }) : [];
   const inBurst = new Set(bursts.flatMap((b) => b.mediaItems.map((i) => i.id)));
   const items = rows.filter((r) => !kinds[r.source] && !inBurst.has(r.id)).map(toItem);
@@ -114,22 +114,22 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
     if (seen.has(r.id)) continue;
     seen.add(r.id);
     const srcCat = eventMeta(c, sourceMeta).category;
-    // лента науки/техники/космоса/медицины держит категорию ленты; остальным — категория темы аудитории
+    // science/tech/space/health feeds keep the feed's category; for the rest — the category of the audience topic
     store.setCategory(r.id, ['science', 'space', 'health', 'tech'].includes(srcCat) ? srcCat : d.sc.audienceCategory ?? srcCat);
-    // группа разнообразия: шоковый класс, затем тема аудитории, затем категория ленты
-    // (у общих ru-лент категория russia — она не должна перебивать тему «экономика», «наука» и т. п.)
+    // diversity group: shock class, then the audience topic, then the feed category
+    // (common ru feeds have the category russia — it must not override a topic such as «экономика» (economy), «наука» (science), etc.)
     const section = sectionFor({ shockGroup: d.sc.shockGroup, audienceCategory: d.sc.audienceCategory, feedCategory: srcCat });
     store.setSection(r.id, section);
     out.events++;
     let [status, reason] = selectStatus(c, d);
-    // высокий пик не теряем из-за старения текущей оценки: топ и дайджест считают по peak_score
+    // do not lose a high peak because the current score has aged: the top and digest count by peak_score
     const peak = store.get(r.id)?.peak_score ?? 0;
     if (status === 'отклонено' && d.gate.ok && peak >= (cfg.thresholds?.publish ?? 40)) {
       status = 'новое';
       reason = `оценка снизилась до ${d.sc.score}, пик ${peak}`;
     }
     if (r.status === 'выпущено' || store.hasDraft(r.id)) {
-      status = r.status; // уже выпущено/с черновиком: статус не сбрасываем
+      status = r.status; // already published / has a draft: do not reset the status
       reason = store.get(r.id).status_reason;
     } else {
       store.setStatus(r.id, status, reason, stamp);
@@ -145,7 +145,7 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
   const politics = div.politics ?? POLITICS;
   const days = new Set([...seen].map((id) => ownerDay(store.get(id)?.first_seen, tz)).filter(Boolean));
 
-  // «Отобрано» 15–30 в сутки: лишнее сверх дневного потолка уходит в «отклонено» по пиковой оценке
+  // «Отобрано» (selected) 15–30 per day: the excess over the daily ceiling goes to «отклонено» (rejected) by peak score
   let all = store.list();
   const maxSelected = cfg.daily_selected_max ?? 0;
   if (maxSelected > 0) {
@@ -165,12 +165,12 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
   all = store.list();
   const inDays = all.filter((e) => days.has(ownerDay(e.first_seen, tz)));
 
-  // Срочное: то же правило микса — до per_day за сутки, не больше per_group одной группы
+  // Urgent: the same mix rule — up to per_day per day, no more than per_group from one group
   const minBreakingSources = cfg.breaking?.min_sources ?? 2;
   const breaking = pickDiverse(
     inDays.filter((e) => {
       if (e.status === 'отклонено' || Number(e.independent_sources ?? 0) < minBreakingSources) return false;
-      // в базе копятся все ссылки за все прогоны: считаем по одной последней на издателя
+      // the database accumulates all links across all runs: count one latest per publisher
       const publishers = latestPerPublisher(e.sources, groups);
       return isBreaking(peakOf(e), publishers, { now: now.getTime(), config: cfg });
     }),
@@ -179,7 +179,7 @@ export function selectEvents(store, { hours = 24, now = new Date(), groups = {},
   store.setBreakingFlags(breaking.map((e) => e.id), inDays.map((e) => e.id));
   out.breaking = breaking.length;
 
-  // «Топ дня» — только текущие сутки UTC+7; пометки прошлых дней сбрасываются (была ошибка «42 топа»)
+  // «Топ дня» (top of the day) — current day in UTC+7 only; marks from past days are reset (there was a bug with «42 топа» (42 tops))
   const nowDay = ownerDay(now.toISOString(), tz);
   const dayEvents = nowDay ? all.filter((e) => ownerDay(e.first_seen, tz) === nowDay) : [];
   const top = topOfDay(dayEvents, {

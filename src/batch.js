@@ -7,13 +7,13 @@ import { stripLinks } from './export-eval.js';
 export const SINGLE_MIN_SCORE = 70;
 export const BATCHES_DIR = 'data/batches';
 
-/** Подходит ли событие в пакет: 2+ источников; одно-источниковое — только без needsOwner и с оценкой ≥ 70. */
+/** Whether an event fits into a batch: 2+ sources; a single-source event only without needsOwner and with score ≥ 70. */
 export function eligible(e) {
   if (e.independent_sources >= 2) return true;
   return !e.needs_owner && (e.score ?? 0) >= SINGLE_MIN_SCORE;
 }
 
-/** События «отобрано» без черновика, не больше max, лучшие по оценке — в формате docs/eval/events-*.json. */
+/** "Selected" events without a draft, at most max, best by score — in the docs/eval/events-*.json format. */
 export function pickEvents(store, max = 6) {
   return store
     .list({ status: 'отобрано' })
@@ -41,7 +41,7 @@ export const README = (n) => `# Пакет для Риты: ${n} событий
 
 export const stamp = (d = new Date()) => d.toISOString().replace(/\.\d+Z$/, 'Z').replace(/:/g, '-');
 
-/** Создаёт пакет. Возвращает путь к папке или null, если брать нечего. */
+/** Creates a batch. Returns the folder path, or null if there is nothing to take. */
 export async function makeBatch({ dbPath, max = 6, dir = BATCHES_DIR, now = new Date() } = {}) {
   const store = openStore(dbPath);
   let events;

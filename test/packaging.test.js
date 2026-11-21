@@ -12,9 +12,9 @@ const noSleep = async () => {};
 
 const KAPP = '<b>В Каппадокии обрушилась скала у музея Гёреме: погибли 3 человека, 5 ранены</b>\n\nВо время ливня кусок скалы рухнул на туристической площадке.\n\n<b>Что сейчас:</b> опасную зону закрыли для посетителей.\n\n<blockquote expandable><b>Подробности:</b> обвал произошёл после затяжных дождей. Власти начали проверку соседних маршрутов, погибших 40.</blockquote>';
 
-// ───── 1–2. карточка без дубля, короткий титр ─────
+// ───── 1–2. card without duplication, short title ─────
 
-test('правка 1–2: на карточке цифра и короткий титр, текста поста нет', () => {
+test('fix 1–2: the card has the figure and a short title, no post text', () => {
   const m = cardModel({ text: 'В Каппадокии обрушилась скала, погибли 3, ранены 5\n\nВо время ливня кусок скалы рухнул на туристической площадке. Площадка закрыта.' });
   assert.equal(m.layout, 'number');
   assert.equal(m.number.text, '3');
@@ -27,7 +27,7 @@ test('правка 1–2: на карточке цифра и короткий �
   assert.match(html, /font-size:(7[0-6]|6\d)px/); // титр крупнее прежних 62
 });
 
-test('правка 2: cardTitle режет по двоеточию, тире и запятой, ≤8 слов и ≤70 знаков', () => {
+test('fix 2: cardTitle cuts at a colon, dash and comma; ≤8 words and ≤70 characters', () => {
   assert.equal(cardTitle('В Каппадокии обрушилась скала у музея Гёреме: погибли 3 человека, 5 ранены'), 'В Каппадокии обрушилась скала у музея Гёреме');
   assert.equal(cardTitle('Власти Вельдании закрыли границу с соседями — туристов развернули'), 'Власти Вельдании закрыли границу с соседями');
   assert.equal(cardTitle('Взрыв на заводе'), 'Взрыв на заводе');
@@ -36,9 +36,9 @@ test('правка 2: cardTitle режет по двоеточию, тире и 
   assert.doesNotMatch(cardTitle('Правительство решило отложить повышение налога на, '), /[,\s]$/);
 });
 
-// ───── 3. приоритет цифры ─────
+// ───── 3. figure priority ─────
 
-test('правка 3: жертвы выше процентов и денег; словесные числа', () => {
+test('fix 3: casualties outrank percentages and money; number words', () => {
   const a = extractNumber('Погибли 5 человек, разрушено 10% здания, ущерб 2 млн долларов');
   assert.equal(a.kind, 'victims');
   assert.equal(a.text, '5');
@@ -51,13 +51,13 @@ test('правка 3: жертвы выше процентов и денег; с
   assert.equal(w.unit, 'погибших');
   assert.deepEqual(w.second, { value: 3, label: 'раненых' });
   assert.equal(extractNumber('Ранены пятеро детей').text, '5');
-  // проценты без жертв — по-прежнему проценты
+  // percentages without casualties are still percentages
   assert.equal(extractNumber('Бензин подорожал на 8%, рейс на 300 пассажиров').text, '8%');
 });
 
-// ───── 8. единицы ─────
+// ───── 8. units ─────
 
-test('правка 8: лет, часов, минут, дней, суток, рейсов, домов, школ, стран', () => {
+test('fix 8: years, hours, minutes, days, periods, flights, houses, schools, countries', () => {
   const u = (t) => { const n = extractNumber(t); return n && `${n.text} ${n.unit}`; };
   assert.equal(u('Отключили свет в 40 домах на 5 дней'), '40 домов');
   assert.equal(u('Воду отключат на 5 дней'), '5 дней');
@@ -67,29 +67,29 @@ test('правка 8: лет, часов, минут, дней, суток, ре
   assert.equal(u('Отменили 120 рейсов'), '120 рейсов');
   assert.equal(u('Закрыли 3 школы'), '3 школы');
   assert.equal(u('Визы отменили для 14 стран'), '14 стран');
-  assert.equal(u('Перемирие на двое суток'), null); // слова-числа вне жертв не извлекаем
+  assert.equal(u('Перемирие на двое суток'), null); // number words outside casualties are not extracted
   assert.equal(u('Перемирие на 2 суток'), '2 суток');
-  assert.equal(u('В 2026 году власти заявили о планах'), null); // год — не срок
+  assert.equal(u('В 2026 году власти заявили о планах'), null); // a year is not a duration
   assert.equal(pickLayout('Отключили свет в 40 домах на 5 дней'), 'number');
 });
 
-// ───── 6. разметка не попадает на карточку ─────
+// ───── 6. markup does not reach the card ─────
 
-test('правка 6: блок blockquote и теги не попадают на карточку и в число', () => {
+test('fix 6: the blockquote block and tags do not reach the card or the number', () => {
   const s = splitPost(KAPP);
   assert.match(s.headline, /^В Каппадокии обрушилась скала/);
   assert.doesNotMatch(JSON.stringify(s), /<|Подробности|обвал произошёл/);
   const m = cardModel({ text: KAPP });
-  assert.equal(m.number.text, '3'); // «погибших 40» из слоя 3 не подхватывается
+  assert.equal(m.number.text, '3'); // "погибших 40" from layer 3 is not picked up
   assert.equal(m.title, 'В Каппадокии обрушилась скала у музея Гёреме');
   assert.doesNotMatch(cardHtml(m), /&lt;b&gt;|<b>|blockquote/);
   assert.equal(gateCard(m).ok, true);
   assert.equal(cardText('<b>Заголовок</b>\n<blockquote>скрыто</blockquote>'), 'Заголовок\n');
 });
 
-// ───── 7. безцифровой макет ─────
+// ───── 7. no-figure layout ─────
 
-test('правка 7: без цифры — титр, жёлтый разделитель и короткая строка главного', () => {
+test('fix 7: no figure — title, yellow divider and a short lead line', () => {
   const m = cardModel({ text: '<b>Президент Вельдании объявил об отставке правительства</b>\n\nПравительство уходит в отставку после вотума. Выборы назначат позже.\n\n<b>Что это значит:</b> до выборов страной управляет временный кабинет, который назначит парламент.' });
   assert.equal(m.layout, 'headline');
   assert.equal(m.caption, 'до выборов страной управляет временный кабинет, который назначит парламент');
@@ -104,9 +104,9 @@ test('правка 7: без цифры — титр, жёлтый раздел�
   assert.equal(cardModel({ text: 'Президент выступил с речью' }).caption, '');
 });
 
-// ───── 5. публикация: HTML ─────
+// ───── 5. publishing: HTML ─────
 
-test('правка 5: sanitizeHtml оставляет только <b>, <i>, <blockquote [expandable]>', () => {
+test('fix 5: sanitizeHtml keeps only <b>, <i>, <blockquote [expandable]>', () => {
   assert.equal(sanitizeHtml('<b>да</b> и <i>нет</i>'), '<b>да</b> и <i>нет</i>');
   assert.equal(sanitizeHtml('<B>да</B>'), '<b>да</b>');
   assert.equal(sanitizeHtml('<blockquote expandable>скрыто</blockquote>'), '<blockquote expandable>скрыто</blockquote>');
@@ -121,7 +121,7 @@ test('правка 5: sanitizeHtml оставляет только <b>, <i>, <bl
   assert.equal(escapeText('a<b>'), 'a&lt;b&gt;');
 });
 
-test('правка 5: formatPost шлёт parse_mode HTML; plain — без разметки', () => {
+test('fix 5: formatPost sends parse_mode HTML; plain — without markup', () => {
   const t = formatPost('@ch', { text: KAPP });
   assert.equal(t.method, 'sendMessage');
   assert.equal(t.params.parse_mode, 'HTML');
@@ -132,11 +132,11 @@ test('правка 5: formatPost шлёт parse_mode HTML; plain — без ра
   const plain = formatPost('@ch', { text: '<b>Ж</b> 1<2' }, { plain: true });
   assert.equal(plain.params.parse_mode, undefined);
   assert.equal(plain.params.text, 'Ж 1<2');
-  // пост без разметки публикуется как раньше
+  // a post without markup is published as before
   assert.equal(formatPost('@ch', { text: 'Привет' }).params.text, 'Привет');
 });
 
-test('правка 5: 400 «can\'t parse entities» — повтор без разметки, пост не теряется', async () => {
+test('fix 5: 400 "can\'t parse entities" — retry without markup; the post is not lost', async () => {
   const calls = [];
   const send = async (req) => {
     calls.push(req);
@@ -149,21 +149,21 @@ test('правка 5: 400 «can\'t parse entities» — повтор без ра
   assert.equal(r.plain, true);
   assert.equal(calls.length, 2);
   assert.equal(calls[1].params.text, 'Заголовок\n\nТекст.');
-  // другая 400 — повтор без разметки не нужен
+  // another 400 — no markup retry needed
   let n = 0;
   const bad = await publish({ chat: '@ch', post: { text: 'x' }, send: async () => { n++; throw Object.assign(new Error('Bad Request: chat not found'), { status: 400 }); }, retries: 2, sleep: noSleep });
   assert.equal(bad.ok, false);
   assert.equal(n, 1);
 });
 
-// ───── 9. ворота и теги ─────
+// ───── 9. gate and tags ─────
 
-test('правка 9: ворота считают длину и стоп-слова по видимому тексту', () => {
-  const tagged = `<b>${'а'.repeat(500)}</b>\n\n<blockquote expandable>${'б'.repeat(500)}</blockquote>`; // видимых 1002, с тегами >1050
+test('fix 9: the gate counts length and stop-words on visible text', () => {
+  const tagged = `<b>${'а'.repeat(500)}</b>\n\n<blockquote expandable>${'б'.repeat(500)}</blockquote>`; // 1002 visible, with tags >1050
   assert.ok(tagged.length > 1024);
   assert.equal(gate({ body: tagged }).ok, true);
   assert.equal(gate({ body: `<b>${'а'.repeat(1030)}</b>` }).ok, false);
-  assert.equal(gate({ body: '<b>Что сейчас:</b> по <i>данным</i> властей' }).ok, false); // «по данным» разбито тегами
+  assert.equal(gate({ body: '<b>Что сейчас:</b> по <i>данным</i> властей' }).ok, false); // "по данным" split by tags
   assert.equal(gate({ body: '<blockquote expandable>Это шок для города</blockquote>' }).ok, false);
   assert.equal(gate({ body: '<b>Заголовок</b>\n\nСуть дела.' }).ok, true);
   assert.equal(gate({ body: '<b>Заголовок</b> <a href="https://x.ru">тут</a>' }).ok, false);
@@ -171,7 +171,7 @@ test('правка 9: ворота считают длину и стоп-сло�
   assert.equal(gate({ body: 'Пост 1 < 2 без разметки' }).ok, true);
 });
 
-test('правка 4: ingest принимает размеченный пост и проверяет целиком и видимую часть', () => {
+test('fix 4: ingest accepts a marked-up post and checks both the whole and the visible part', () => {
   const s = openStore(':memory:');
   s.upsert({ id: 'e1', title: 'Скала', firstSeen: '2026-10-30T10:00:00Z', independentSources: 3, score: 80, reasons: [], needsOwner: false, sources: [{ source: 'x', name: 'X', link: 'https://example.com/1', published: '2026-10-30T10:00:00Z' }] }, '2026-10-30T10:00:00Z');
   s.upsert({ id: 'e2', title: 'Другое', firstSeen: '2026-10-30T10:00:00Z', independentSources: 3, score: 80, reasons: [], needsOwner: false, sources: [{ source: 'x', name: 'X', link: 'https://example.com/2', published: '2026-10-30T10:00:00Z' }] }, '2026-10-30T10:00:00Z');
@@ -180,24 +180,24 @@ test('правка 4: ingest принимает размеченный пост 
     { id: 'e2', style: 'срочно', text: '<b>Заголовок</b>\n\n<blockquote expandable>Подробности: источники сообщают</blockquote>' },
   ]);
   assert.equal(rows[0].ok, true);
-  assert.equal(s.getDraft('d-e1').text, KAPP); // текст хранится как есть, с разметкой
+  assert.equal(s.getDraft('d-e1').text, KAPP); // the text is stored as is, with markup
   assert.equal(rows[1].ok, false);
   assert.match(rows[1].reasons.join(), /stop-word/);
   s.close();
 });
 
-// ───── 10. дайджесты ─────
+// ───── 10. digests ─────
 
 const items = (n) => Array.from({ length: n }, (_, i) => ({ id: `e${i + 1}`, section: 'war', line: i % 2 ? `Бензин подорожал на 8%: на заправках области выросли цены (${i})` : `Власти Вельдании закрыли границу с соседями ${i}` }));
 
-test('правка 10: boldLead — жирные ключевые слова в начале пункта', () => {
+test('fix 10: boldLead — bold keywords at the start of an item', () => {
   assert.equal(boldLead('Бензин +8%: цены на заправках выросли'), '<b>Бензин +8%:</b> цены на заправках выросли');
   assert.equal(boldLead('Власти закрыли границу — туристов развернули'), '<b>Власти закрыли границу</b> — туристов развернули');
   assert.equal(boldLead('Власти Вельдании закрыли границу с соседями'), '<b>Власти Вельдании закрыли</b> границу с соседями');
   assert.equal(boldLead('Курс <упал> & всё: быстро'), '<b>Курс &lt;упал&gt; &amp; всё:</b> быстро');
 });
 
-test('правка 10: в дайджесте пункты с 4-го — в сворачиваемой цитате', () => {
+test('fix 10: in the digest, items from the 4th on go into a collapsible quote', () => {
   const d = buildDigest('утро', items(7));
   assert.match(d.text, /^Главное за ночь\n\n1\. <b>/);
   assert.equal(d.items.length, 7);
@@ -206,17 +206,17 @@ test('правка 10: в дайджесте пункты с 4-го — в св�
   assert.match(folded, /^4\. <b>/);
   assert.match(folded, /7\. <b>.*<\/blockquote>$/s);
   assert.equal(gate({ body: d.text }).ok, true);
-  // три пункта — без цитаты
+  // three items — no quote
   assert.doesNotMatch(buildDigest('вечер', items(3)).text, /blockquote/);
   assert.match(buildDigest('вечер', items(5)).text, /^Итог дня\n\n1\. <b>[\s\S]*<\/blockquote>\n\nЧто следить завтра: /);
 });
 
-test('правка 10: leadOf берёт жирный заголовок размеченного поста; старый пост — как раньше', () => {
+test('fix 10: leadOf takes the bold headline of a marked-up post; an old post — as before', () => {
   assert.equal(leadOf(KAPP), 'В Каппадокии обрушилась скала у музея Гёреме: погибли 3 человека, 5 ранены');
   assert.equal(leadOf('Коротко. Ещё одна фраза тут.'), 'Коротко. Ещё одна фраза тут.');
 });
 
-test('правка 5: дайджест с 400 по разметке уходит без неё', async () => {
+test('fix 5: a digest with a 400 on markup goes out without it', async () => {
   const s = openStore(':memory:');
   const first = '2026-10-29T01:00:00.000Z';
   for (let i = 1; i <= 5; i++) {

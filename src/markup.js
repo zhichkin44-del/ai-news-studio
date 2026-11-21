@@ -1,11 +1,11 @@
 /**
- * Разметка поста для Telegram (parse_mode HTML). Разрешены только <b>, <i>, <blockquote>, <blockquote expandable>;
- * всё остальное — обычный текст. Пост без разметки остаётся прежним (кроме экранирования & < >).
+ * Post markup for Telegram (parse_mode HTML). Only <b>, <i>, <blockquote>, <blockquote expandable> are allowed;
+ * everything else is plain text. A post without markup stays as it is (except escaping & < >).
  */
 const TAG_RE = /<\s*(\/?)\s*(b|i|blockquote)(\s+expandable)?\s*>/gi;
 const ENTITY_RE = /&(?:amp|lt|gt|quot|#\d+|#x[0-9a-f]+);/iy;
 
-/** Экранирует & < > в обычном тексте (готовые сущности &amp; &lt; &gt; &quot; не трогает). */
+/** Escapes & < > in plain text (ready-made entities &amp; &lt; &gt; &quot; are left alone). */
 export function escapeText(s) {
   let out = '';
   const str = String(s ?? '');
@@ -20,9 +20,9 @@ export function escapeText(s) {
 }
 
 /**
- * Безопасный HTML для Telegram: разрешённые теги сохраняются (регистр и пробелы нормализуются),
- * лишние закрывающие отбрасываются, незакрытые закрываются, вложенные цитаты не открываются;
- * любые другие теги и случайные < > & экранируются.
+ * Safe HTML for Telegram: allowed tags are kept (case and spaces normalized),
+ * extra closing tags are dropped, unclosed ones are closed, nested quotes are not opened;
+ * any other tags and stray < > & are escaped.
  */
 export function sanitizeHtml(text) {
   const src = String(text ?? '');
@@ -41,7 +41,7 @@ export function sanitizeHtml(text) {
     } else if (name === 'blockquote' && stack.includes('blockquote')) {
       continue;
     } else if (name === 'blockquote' && stack.length) {
-      while (stack.length) out += `</${stack.pop()}>`; // цитата внутри <b>/<i> не бывает: закрываем их
+      while (stack.length) out += `</${stack.pop()}>`; // a quote inside <b>/<i> does not occur: close them
       stack.push(name);
       out += m[3] ? '<blockquote expandable>' : '<blockquote>';
     } else {
@@ -56,14 +56,14 @@ export function sanitizeHtml(text) {
 
 const decode = (s) => s.replace(/&(amp|lt|gt|quot);/g, (_, e) => ({ amp: '&', lt: '<', gt: '>', quot: '"' }[e]));
 
-/** Видимый текст: разрешённые теги сняты, сущности раскрыты. Для пустой разметки — тот же текст. */
+/** Visible text: allowed tags stripped, entities decoded. For text without markup — the same text. */
 export const visibleText = (text) => decode(sanitizeHtml(text).replace(/<\/?(?:b|i|blockquote)(?: expandable)?>/g, ''));
 
-/** Видимый текст без слоя 3 (блок <blockquote>…</blockquote>) — то, что допустимо на карточке. */
+/** Visible text without layer 3 (the <blockquote>…</blockquote> block) — what is allowed on the card. */
 export function cardText(text) {
   const noDetails = sanitizeHtml(text).replace(/<blockquote(?: expandable)?>[\s\S]*?<\/blockquote>/g, '');
   return visibleText(noDetails);
 }
 
-/** Есть ли в тексте разрешённая разметка. */
+/** Whether the text contains allowed markup. */
 export const hasMarkup = (text) => new RegExp(TAG_RE.source, 'i').test(String(text ?? ''));

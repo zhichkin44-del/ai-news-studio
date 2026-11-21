@@ -15,22 +15,22 @@ const B = { id: 'b', name: 'Источник Б', url: 'x://b' };
 const fx = (name) => readFile(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const loader = async (s) => parseFeed(await fx(s.id === 'a' ? 'a.rss.xml' : 'b.atom.xml'), s);
 
-test('score: пример из методики = 90', () => {
+test('score: the methodology example = 90', () => {
   const times = [min(10), ...Array.from({ length: 12 }, (_, i) => min(10 - 0.5 * (i + 1)))];
   const r = score({ title: 'Землетрясение в стране Y, есть погибшие', firstSeen: min(10), independentSources: 2, times }, { now: NOW, audience: null });
   assert.equal(r.score, 90);
-  assert.equal(r.reasons.length, 4 + 1); // 4 признака + пометка «острое»
+  assert.equal(r.reasons.length, 4 + 1); // 4 signals + the «острое» (acute) flag
   assert.equal(r.acute, true);
   assert.equal(r.needsOwner, true);
 });
 
-test('score: свежесть по ступеням', () => {
+test('score: freshness by steps', () => {
   const at = (m) => score({ title: 'x', firstSeen: min(m), independentSources: 3 }, { now: NOW }).score - 25;
   assert.deepEqual([10, 15, 16, 60, 61, 180, 181].map(at), [30, 30, 20, 20, 10, 10, 0]);
   assert.equal(score({ title: 'x', firstSeen: null, independentSources: 3 }, { now: NOW }).score, 25);
 });
 
-test('score: источники 1/2/3+, одно-источниковое — needsOwner', () => {
+test('score: sources 1/2/3+; single-source — needsOwner', () => {
   const s = (n) => score({ title: 'x', firstSeen: min(500), independentSources: n }, { now: NOW });
   assert.deepEqual([0, 1, 2, 3, 7].map((n) => s(n).score), [0, 5, 15, 25, 25]);
   assert.equal(s(1).needsOwner, true);
@@ -39,7 +39,7 @@ test('score: источники 1/2/3+, одно-источниковое — ne
   assert.match(s(1).reasons.join('|'), /одно-источниковое/);
 });
 
-test('score: тема и рост', () => {
+test('score: topic and growth', () => {
   const t = (title) => score({ title, firstSeen: min(500), independentSources: 3 }, { now: NOW, audience: null });
   assert.equal(t('Трамп подписал указ о пошлинах').score, 25 + 15);
   assert.equal(t('Ракетный удар: есть погибшие').score, 25 + 25);
@@ -47,11 +47,11 @@ test('score: тема и рост', () => {
   assert.equal(t('Открылась выставка кошек').score, 25);
   const g = (k) => score({ title: 'x', firstSeen: min(500), independentSources: 3, times: [min(500), ...Array.from({ length: k }, () => min(490))] }, { now: NOW }).score - 25;
   assert.deepEqual([0, 3, 4, 9, 10].map(g), [0, 0, 10, 10, 20]);
-  // сообщения позже окна 30 мин не считаются
+  // messages later than the 30-minute window do not count
   assert.equal(score({ title: 'x', firstSeen: min(500), independentSources: 3, times: [min(500), min(400), min(300), min(200), min(100)] }, { now: NOW }).score, 25);
 });
 
-test('score: веса и пороги — из конфига, без правки кода', () => {
+test('score: weights and thresholds come from config, without code changes', () => {
   const cfg = { ...DEFAULT_CONFIG, sources: { 1: 1, 2: 2, 3: 3 }, thresholds: { publish: 5, urgent: 6 } };
   assert.equal(score({ title: 'x', firstSeen: min(500), independentSources: 3 }, { now: NOW, config: cfg }).score, 3);
   assert.deepEqual([4, 5, 6].map((v) => band(v, cfg)), ['below', 'plan', 'urgent']);
@@ -67,7 +67,7 @@ const ev = (over = {}) => ({
   ...over,
 });
 
-test('store: запись, чтение, статус', () => {
+test('store: write, read, status', () => {
   const st = openStore(':memory:');
   const r = st.upsert(ev());
   assert.deepEqual(r, { id: 'e1', created: true, status: 'новое' });
@@ -90,7 +90,7 @@ test('store: запись, чтение, статус', () => {
   st.close();
 });
 
-test('store: повторная запись не плодит дубли, статус сохраняется', () => {
+test('store: a repeated write creates no duplicates; the status is kept', () => {
   const st = openStore(':memory:');
   st.upsert(ev());
   st.setStatus('e1', 'выпущено');
@@ -102,7 +102,7 @@ test('store: повторная запись не плодит дубли, ст�
   assert.equal(st.get('e1').status, 'выпущено');
 });
 
-test('store: событие выросло и сменило id — это то же событие (по ссылкам)', () => {
+test('store: an event grew and changed its id — it is the same event (by links)', () => {
   const st = openStore(':memory:');
   st.upsert(ev());
   const r = st.upsert(ev({
@@ -113,10 +113,10 @@ test('store: событие выросло и сменило id — это то 
   assert.equal(st.count(), 1);
   assert.equal(st.get('e1').sources.length, 3);
   assert.equal(st.get('e1').independent_sources, 3);
-  assert.equal(st.get('e1').first_seen, min(30)); // раннее время не затирается
+  assert.equal(st.get('e1').first_seen, min(30)); // the earlier time is not overwritten
 });
 
-test('store: база живёт на диске между открытиями', async () => {
+test('store: the database lives on disk between openings', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'news-db-'));
   try {
     const path = join(dir, 'sub', 'news.db');
@@ -131,10 +131,10 @@ test('store: база живёт на диске между открытиями
   }
 });
 
-test('выпуск: порог и одно-источниковое; причина в хранилище', async () => {
+test('issue: threshold and single-source; the reason is in the store', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'news-'));
   try {
-    // порог по умолчанию 40: что ниже — остаётся в базе как «отклонено» с причиной
+    // default threshold 40: anything below stays in the database as «отклонено» (rejected) with a reason
     const { events } = await makeIssue({ outDir: dir, now: new Date(NOW), sources: [A, B], loader, dbPath: ':memory:' });
     assert.equal(events.length, 3);
     assert.ok(events.every((e) => typeof e.score === 'number'));
@@ -146,7 +146,7 @@ test('выпуск: порог и одно-источниковое; причи�
   }
 });
 
-test('выпуск: повторный запуск не дублирует события и посты', async () => {
+test('issue: a repeat run does not duplicate events or posts', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'news-'));
   const dbPath = join(dir, 'news.db');
   const low = { ...DEFAULT_CONFIG, thresholds: { publish: 0, urgent: 70 } };
@@ -154,7 +154,7 @@ test('выпуск: повторный запуск не дублирует со
     const run = (m) => makeIssue({ outDir: dir, now: new Date(NOW + m * 60000), sources: [A, B], loader, dbPath, scoreConfig: low });
     const r1 = await run(0);
     const md1 = await readFile(r1.path, 'utf8');
-    assert.equal(md1.match(/^## /gm).length, 2); // два подтверждённых; одно-источниковое ждёт владельца
+    assert.equal(md1.match(/^## /gm).length, 2); // two confirmed; the single-source one waits for the owner
     const r2 = await run(1);
     const md2 = await readFile(r2.path, 'utf8');
     assert.doesNotMatch(md2, /^## /m);
