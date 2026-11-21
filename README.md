@@ -1,9 +1,10 @@
-# Studio News
+# AI News Studio
 
 An automated pipeline for a Russian-language world-news channel: it collects news from about 100 feeds, groups items into events, scores them, prepares posts for an AI editor, and publishes approved posts to Telegram.
 
 The channel content is in Russian. The code, docs and CLI are in English.
 
+Interface language: Russian (the channel publishes in Russian).
 ## Features
 
 - **Feed collection** from 92 RSS/Atom feeds and a USGS earthquake GeoJSON feed, plus 6 "hype" signal sources (Reddit, Wikipedia, Bluesky, Google Trends). Items are stored in SQLite (`node:sqlite`, WAL mode).
@@ -30,8 +31,8 @@ The channel content is in Russian. The code, docs and CLI are in English.
 node --version
 
 # 2. Get the code
-git clone https://github.com/zhichkin44-del/studio-news.git
-cd studio-news
+git clone https://github.com/zhichkin44-del/ai-news-studio.git
+cd ai-news-studio
 
 # 3. Run the tests
 npm test
@@ -44,8 +45,8 @@ npm test
 node --version
 
 # 2. Get the code
-git clone https://github.com/zhichkin44-del/studio-news.git
-cd studio-news
+git clone https://github.com/zhichkin44-del/ai-news-studio.git
+cd ai-news-studio
 
 # 3. Run the tests
 npm test

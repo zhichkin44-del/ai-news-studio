@@ -4,7 +4,7 @@ import { gate } from './gate.js';
 
 /** Прогон постов {id, style, text} через ворота. Возвращает строки и общий итог. */
 export function checkPosts(posts) {
-  if (!Array.isArray(posts)) throw new Error('ожидался массив постов');
+  if (!Array.isArray(posts)) throw new Error('expected an array of posts');
   const rows = posts.map((p) => {
     const g = gate({ title: '', body: p?.text ?? '' });
     return { id: p?.id ?? '?', ok: g.ok, reasons: g.reasons };
@@ -18,7 +18,7 @@ export const formatRows = (rows) =>
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const file = process.argv[2];
   if (!file) {
-    console.error('Использование: npm run check-posts -- <файл.json>');
+    console.error('Usage: npm run check-posts -- <file.json>');
     process.exit(2);
   }
   try {

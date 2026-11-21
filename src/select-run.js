@@ -196,7 +196,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const i = args.indexOf('--hours');
   const hours = i >= 0 ? Number(args[i + 1]) : 24;
   if (!(hours > 0)) {
-    console.error('Использование: npm run select -- [--hours N]');
+    console.error('Usage: npm run select -- [--hours N]');
     process.exit(2);
   }
   const sources = await loadSources();

@@ -136,9 +136,9 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--hours') {
       out.hours = Number(argv[++i]);
-      if (!(out.hours > 0)) throw new Error('--hours требует число > 0');
+      if (!(out.hours > 0)) throw new Error('--hours requires a number > 0');
     } else if (argv[i] === '--db') out.db = argv[++i];
-    else throw new Error(`неизвестный флаг: ${argv[i]}`);
+    else throw new Error(`unknown flag: ${argv[i]}`);
   }
   return out;
 }

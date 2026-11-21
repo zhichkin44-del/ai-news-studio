@@ -17,5 +17,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const list = pendingDrafts(store);
   store.close();
   if (process.argv.includes('--json')) console.log(JSON.stringify(list, null, 2));
-  else console.log(list.length ? list.map((d) => `${d.id} [${d.style}] (${d.score}) ${d.text}`).join('\n') : 'пусто');
+  else console.log(list.length ? list.map((d) => `${d.id} [${d.style}] (${d.score}) ${d.text}`).join('\n') : 'empty');
 }

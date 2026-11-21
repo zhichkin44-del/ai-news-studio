@@ -63,9 +63,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const i = args.indexOf('--max');
   const max = i >= 0 ? Number(args[i + 1]) : 6;
   if (!Number.isInteger(max) || max < 1) {
-    console.error('Использование: npm run batch -- [--max N]');
+    console.error('Usage: npm run batch -- [--max N]');
     process.exit(2);
   }
   const folder = await makeBatch({ max, dbPath: process.env.NEWS_DB, dir: process.env.NEWS_BATCHES });
-  console.log(folder ?? 'пусто');
+  console.log(folder ?? 'empty');
 }

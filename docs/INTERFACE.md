@@ -1,18 +1,18 @@
-# Интерфейс управления каналами (этап 1, на утверждении)
+# Channel management interface (stage 1, pending approval)
 
-Макеты (холст, примерные данные): https://claude.ai/artifact/8jgaCBW4iRHKc6znzv9adJ — приватная ссылка владельца. Раздел «Каналы» встроен в верхнее меню пульта.
+Mockups (canvas, sample data): private owner link (not published). The "Channels" section is built into the top menu of the control panel.
 
-Экраны:
-0. **Каналы** — список каналов, «+ Новый канал» одной фразой; блок «Каналы» на Пульсе.
-1. **Канал** — табло дня, лента выпущенного, «ждёт тебя», лестница доверия.
-2. **Одобрение** — очередь, пост как в Telegram, «Одобрить / Поправить / Отклонить», проверки кодом.
-3. **Zokul на телефоне** — те же карточки и кнопки в мессенджере.
-4. **Редакционный стол** — всё, что пришло, решение по каждому событию, кто был первым.
-5. **Рубрики** — регулярные выпуски (утро, час, итоги дня, неделя): время, стиль, объём.
-6. **Аналитика** — подписчики, охват, стили, что сработало, что Рита меняет.
-7. **Штат** — Рита (инфо-редактор) и Макс (инженер), кто за что.
-8. **Настройки канала** — тема, стили, источники, площадки, лестница доверия, расходы, пауза.
-9. **Подключения** — что нужно для запуска и что от владельца (слушатель, бот, сервер).
-10. **Процесс** — от события до поста: 7 шагов, кто отвечает, что делать при сбое.
+Screens:
+0. **Channels**: list of channels, "+ New channel" from one sentence; a "Channels" block on the Pulse screen.
+1. **Channel**: day scoreboard, feed of published items, "waiting for you", trust ladder.
+2. **Approval**: queue, post shown as in Telegram, "Approve / Edit / Reject", automatic checks.
+3. **Zokul on the phone**: the same cards and buttons in the messenger.
+4. **Editorial desk**: everything that came in, a decision for each event, who was first.
+5. **Sections**: regular issues (morning, hourly, day summary, weekly): time, style, volume.
+6. **Analytics**: subscribers, reach, styles, what worked, what Rita changes.
+7. **Staff**: Rita (information editor) and Max (engineer), who does what.
+8. **Channel settings**: topic, styles, sources, platforms, trust ladder, spending, pause.
+9. **Connections**: what is needed to start and what the owner must provide (listener, bot, server).
+10. **Process**: from event to post: 7 steps, who is responsible, what to do on failure.
 
-Статус: утверждено владельцем 2026-10-28. Данные в макетах примерные.
+Status: approved by the owner on 2026-10-28. Data in the mockups is sample data.

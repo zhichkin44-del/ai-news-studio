@@ -7,7 +7,7 @@ import { attachImage } from './images.js';
 
 /** Посты {id, style, text} из пакета → ворота → таблица drafts. id поста = id события. */
 export function ingestPosts(store, posts) {
-  if (!Array.isArray(posts)) throw new Error('ожидался массив постов');
+  if (!Array.isArray(posts)) throw new Error('expected an array of posts');
   const rows = posts.map((p) => {
     const eventId = String(p?.id ?? '');
     const text = String(p?.text ?? '');
@@ -26,7 +26,7 @@ export const formatRows = (rows) =>
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dir = process.argv[2];
   if (!dir) {
-    console.error('Использование: npm run ingest -- <папка-пакета>');
+    console.error('Usage: npm run ingest -- <pack-folder>');
     process.exit(2);
   }
   let store;
@@ -40,7 +40,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         const d = store.getDraft(`d-${r.id}`);
         if (d?.status === 'ждёт одобрения') await attachImage(store, d);
       } catch (e) {
-        console.error(`картинка к d-${r.id}: ${e.message}`);
+        console.error(`image for d-${r.id}: ${e.message}`);
       }
     }
     process.exit(ok ? 0 : 1);

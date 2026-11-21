@@ -259,5 +259,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const store = openStore(process.env.NEWS_DB);
   const rows = await attachPending(store);
   store.close();
-  console.log(rows.length ? formatTable(rows) : 'пусто');
+  console.log(rows.length ? formatTable(rows) : 'empty');
 }

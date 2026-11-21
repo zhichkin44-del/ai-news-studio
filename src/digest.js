@@ -44,7 +44,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const from = arg('--from') ? new Date(parseLocal(arg('--from'))) : night.from;
   const to = arg('--to') ? new Date(parseLocal(arg('--to'))) : night.to;
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from >= to) {
-    console.error('Использование: npm run digest -- [--from 2026-10-27T18:00] [--to 2026-10-28T08:00] [--limit 7]  (без зоны — UTC+7)');
+    console.error('Usage: npm run digest -- [--from 2026-10-27T18:00] [--to 2026-10-28T08:00] [--limit 7]  (no zone: UTC+7)');
     process.exit(2);
   }
   const store = openStore(process.env.NEWS_DB ?? DEFAULT_DB);

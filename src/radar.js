@@ -68,9 +68,9 @@ export function parseArgs(argv) {
     if (argv[i] === '--once') out.once = true;
     else if (argv[i] === '--for') {
       const n = Number(argv[++i]);
-      if (!(n > 0)) throw new Error('--for требует число секунд > 0');
+      if (!(n > 0)) throw new Error('--for requires a number of seconds > 0');
       out.forSec = n;
-    } else throw new Error(`неизвестный флаг: ${argv[i]}`);
+    } else throw new Error(`unknown flag: ${argv[i]}`);
   }
   return out;
 }
