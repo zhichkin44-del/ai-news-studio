@@ -16,7 +16,7 @@ Interface language: Russian (the channel publishes in Russian).
 
 ## Screenshots
 
-Infographic cards rendered by `src/card.js` (headline and figure layouts) from sample post text. The figure layout is picked automatically when the post has a notable number.
+Infographic cards rendered by `src/card.js` (headline and figure layouts) from English sample text; the live channel renders the same layouts in Russian. The figure layout is picked automatically when the post has a notable number.
 
 | Headline layout | Figure layout |
 |---|---|
